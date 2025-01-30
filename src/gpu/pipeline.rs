@@ -22,7 +22,7 @@ macro_rules! make_pipeline {
             vertex: wgpu::VertexState {
                 module: &$shader,
                 entry_point: "vs_main",
-                buffers: &[super::state::Vertex::desc()],
+                buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {

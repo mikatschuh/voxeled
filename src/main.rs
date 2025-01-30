@@ -8,19 +8,21 @@ mod time;
 fn main() {
     pollster::block_on(run());
 }
+const WIDTH: u32 = 2000;
+const HEIGHT: u32 = 2000;
 async fn run() {
     env_logger::init(); // this logs error messages
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title("Voxeled")
         .with_inner_size(PhysicalSize::<u32> {
-            width: 2000,
-            height: 2000,
+            width: WIDTH,
+            height: HEIGHT,
         })
         .build(&event_loop)
         .unwrap();
 
-    let mut state = gpu::state::State::new(&window).await; // this creates the state of the program
+    let mut state = gpu::Drawer::connect_to(&window).await; // this creates the state of the program
     let mut delta_time = time::DeltaTime::new();
     let mut keys = input::Keys::default();
     event_loop // main event loop
