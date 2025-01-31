@@ -8,6 +8,7 @@ use crate::make_pipeline;
 use vertex::*;
 use wgpu::util::DeviceExt;
 
+/// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a> {
     // rendering stuff:
     surface: wgpu::Surface<'a>,
@@ -20,18 +21,16 @@ pub struct Drawer<'a> {
     pub window: window::Window<'a>,
 
     render_pipeline: wgpu::RenderPipeline,
-    // scene: Scene,
-    // scene_buffer: wgpu::Buffer,
-    // scene_bind_group: wgpu::BindGroup,
+
+    // Asset things:
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
 }
 
 impl<'a> Drawer<'a> {
-    // Creating some of the wgpu types requires async code
+    /// Diese Funktion erstellt einen Drawer der mit dem aktuellen Fenster verbunden ist.
     pub async fn connect_to(window: &'a winit::window::Window) -> Drawer<'a> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -170,16 +169,15 @@ impl<'a> Drawer<'a> {
             config,
             render_pipeline,
             vertex_buffer,
-            num_vertices: VERTICES.len() as u32,
             index_buffer,
             num_indices: INDICES.len() as u32,
         }
     }
-
+    /// Eine Methode die eine Referenz auf das Fenster des Drawers zurückgibt.
     pub fn window(&self) -> &winit::window::Window {
         &self.window.window
     }
-
+    /// Eine Methode welche die Fenstergröße anpasst.
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.config.width = new_size.width;
@@ -187,18 +185,18 @@ impl<'a> Drawer<'a> {
             self.surface.configure(&self.device, &self.config);
         }
     }
-
+    /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
         // glam::Vec3::new((keys.w - keys.s) as f32, (keys.space - keys.shift) as f32, (keys.d - keys.a) as f32).normalize_or_zero();
-        if keys.esc.just_pressed() {
+        if let Some(..) = keys.esc.just_pressed() {
             self.window.flip_focus()
         }
 
         let center = glam::Vec3::new(1.1920929e-8, 1.1920929e-8, 0.0);
         let angle_rad = 0.2 * delta_time;
     }
-
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
+    pub fn draw(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture

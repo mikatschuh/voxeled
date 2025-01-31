@@ -21,7 +21,7 @@ async fn run() {
         .unwrap();
     let mut drawer = gpu::Drawer::connect_to(&window).await; // this creates the state of the program
     let mut delta_time = time::DeltaTime::new();
-    let mut keys = input::Keys::default();
+    let mut keys = input::Keys::new();
     event_loop // main event loop
         .run(move |event, control_flow| {
             if !keys.handled_event(drawer.window().id(), &event) {
@@ -43,8 +43,8 @@ async fn run() {
                                 //     return;
                                 // }
 
-                                drawer.update(&keys, delta_time.update());
-                                match drawer.render() {
+                                drawer.update(&keys, delta_time.update() as f32);
+                                match drawer.draw() {
                                     Ok(_) => {}
                                     // Reconfigure the surface if it's lost or outdated
                                     Err(

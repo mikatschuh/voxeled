@@ -12,9 +12,9 @@ impl DeltaTime {
         }
     }
     /// Gibt die die temporale Distanz zum letzten Update zurück und setzt den Zeitpunkt des letzten Updates auf jetzt.
-    pub fn update(&mut self) -> f32 {
+    pub fn update(&mut self) -> u128 {
         let delta_time = self.last_update.elapsed().as_nanos();
         self.last_update = Instant::now();
-        delta_time as f32
+        delta_time
     }
 }
