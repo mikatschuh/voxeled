@@ -12,6 +12,11 @@ pollster = "0.3"
 bytemuck = { version = "1.16", features = ["derive"] }
 glam = "0.23"
 
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png"]
+
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
 opt-level = 1

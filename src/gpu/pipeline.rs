@@ -8,14 +8,15 @@ macro_rules! make_pipeline {
         $device:expr,
         $bind_group_layout:expr,
         $config:expr,
-        $shader:expr
+        $shader:expr,
+        $texture_bind_group_layout:expr
     ) => {
         wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(
                 &$device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[],
+                    bind_group_layouts: &[$texture_bind_group_layout],
                     push_constant_ranges: &[],
                 }),
             ),

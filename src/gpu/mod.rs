@@ -1,10 +1,10 @@
 mod camera;
 mod pipeline;
+mod texture;
 mod vertex;
 pub mod window;
 
 use crate::make_pipeline;
-use glam::Vec3;
 use vertex::*;
 use wgpu::util::DeviceExt;
 
@@ -14,11 +14,10 @@ pub struct Drawer<'a> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
-    window: window::Window<'a>,
+    pub window: window::Window<'a>,
 
     render_pipeline: wgpu::RenderPipeline,
     // scene: Scene,
@@ -26,13 +25,14 @@ pub struct Drawer<'a> {
     // scene_bind_group: wgpu::BindGroup,
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
+    diffuse_bind_group: wgpu::BindGroup,
 }
 
 impl<'a> Drawer<'a> {
     // Creating some of the wgpu types requires async code
     pub async fn connect_to(window: &'a winit::window::Window) -> Drawer<'a> {
-        let size = window.inner_size();
-
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -72,15 +72,16 @@ impl<'a> Drawer<'a> {
         // Shader code in this tutorial assumes an sRGB surface texture. Using a different
         // one will result in all the colors coming out darker. If you want to support non
         // sRGB surfaces, you'll need to account for that when drawing to the frame.
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_caps.formats[0]);
+        let size = window.inner_size();
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
+            format: surface_caps
+                .formats
+                .iter()
+                .find(|f| f.is_srgb())
+                .copied()
+                .unwrap_or(surface_caps.formats[0]),
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Immediate, // surface_caps.present_modes[0] will select it at runtime
@@ -89,6 +90,31 @@ impl<'a> Drawer<'a> {
             desired_maximum_frame_latency: 2,
         };
         let (device, queue) = future.await.unwrap();
+        surface.configure(&device, &config);
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the
+                        // corresponding Texture entry above.
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
 
         let render_pipeline = device.create_render_pipeline(&make_pipeline!(
             &device,
@@ -99,7 +125,8 @@ impl<'a> Drawer<'a> {
                 source: wgpu::ShaderSource::Wgsl(
                     crate::gpu::pipeline::collect_shader(std::path::PathBuf::from("./src")).into(),
                 ),
-            })
+            }),
+            &texture_bind_group_layout
         ));
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -107,19 +134,45 @@ impl<'a> Drawer<'a> {
             contents: bytemuck::cast_slice(VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
-
-        let num_vertices = VERTICES.len() as u32;
-
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
         Self {
+            diffuse_bind_group: {
+                let texture = texture::Texture::from_image(
+                    &device,
+                    &queue,
+                    &image::load_from_memory(include_bytes!("happy-tree.png")).unwrap(),
+                    Some("Test Texture"),
+                );
+
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&texture.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                        },
+                    ],
+                    label: Some("diffuse_bind_group"),
+                })
+            },
             window: window::Window::from(window, true),
             surface,
             device,
             queue,
             config,
-            size,
             render_pipeline,
             vertex_buffer,
-            num_vertices,
+            num_vertices: VERTICES.len() as u32,
+            index_buffer,
+            num_indices: INDICES.len() as u32,
         }
     }
 
@@ -129,7 +182,6 @@ impl<'a> Drawer<'a> {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
@@ -137,15 +189,13 @@ impl<'a> Drawer<'a> {
     }
 
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
-        Vec3::new(
-            (keys.w - keys.s) as f32,
-            (keys.space - keys.shift) as f32,
-            (keys.d - keys.a) as f32,
-        )
-        .normalize_or_zero();
+        // glam::Vec3::new((keys.w - keys.s) as f32, (keys.space - keys.shift) as f32, (keys.d - keys.a) as f32).normalize_or_zero();
         if keys.esc.just_pressed() {
             self.window.flip_focus()
         }
+
+        let center = glam::Vec3::new(1.1920929e-8, 1.1920929e-8, 0.0);
+        let angle_rad = 0.2 * delta_time;
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -183,8 +233,10 @@ impl<'a> Drawer<'a> {
                 timestamp_writes: None,
             });
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..1);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
         // submit will accept anything that implements IntoIter

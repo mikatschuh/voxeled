@@ -1,4 +1,4 @@
-/// Enthält den Zustand einer Taste,
+/// Enthält den Zustand einer Taste.
 #[derive(PartialEq, Clone, Copy, Default, Debug)]
 pub enum State {
     Pressed,
