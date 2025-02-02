@@ -1,8 +1,13 @@
 use std::time::Instant;
+use winit::{
+    event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent},
+    keyboard::{KeyCode, PhysicalKey},
+    window::WindowId,
+};
 
 /// Enthält den Zustand einer Taste.
 #[derive(PartialEq, Clone, Copy, Debug)]
-enum InputState {
+pub enum InputState {
     Pressed,
     JustPressed,
 
@@ -26,8 +31,8 @@ impl Sub for InputState {
 }
 
 pub struct State {
-    state: InputState,
-    since: Instant,
+    pub state: InputState,
+    pub since: Instant,
 }
 impl State {
     /// Funktion die zurück gibt ob ein Zustand JustPressed ist.
@@ -58,11 +63,7 @@ pub struct Keys {
     pub mouse_motion: Option<(f64, f64)>,
     pub mouse_wheel: Option<f32>,
 }
-use winit::{
-    event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
-    window::WindowId,
-};
+
 impl Keys {
     /// Erstellt eine neue Keys Instanz.
     pub fn new() -> Self {

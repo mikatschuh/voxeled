@@ -5,16 +5,21 @@ mod vertex;
 pub mod window;
 
 use crate::make_pipeline;
+use camera::Camera;
 use vertex::*;
 use wgpu::util::DeviceExt;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a> {
+    // bind groups:
+    diffuse_bind_group: wgpu::BindGroup,
+    camera_bind_group: wgpu::BindGroup,
+
     // rendering stuff:
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
+    pub config: wgpu::SurfaceConfiguration,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
@@ -22,11 +27,13 @@ pub struct Drawer<'a> {
 
     render_pipeline: wgpu::RenderPipeline,
 
+    camera: Camera,
+    camera_buffer: wgpu::Buffer,
+
     // Asset things:
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    diffuse_bind_group: wgpu::BindGroup,
 }
 
 impl<'a> Drawer<'a> {
@@ -89,7 +96,7 @@ impl<'a> Drawer<'a> {
             desired_maximum_frame_latency: 2,
         };
         let (device, queue) = future.await.unwrap();
-        surface.configure(&device, &config);
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -114,7 +121,28 @@ impl<'a> Drawer<'a> {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
-
+        let camera = Camera::default();
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(
+                &camera.view_proj(size.width as f32 / size.height as f32),
+            ),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
         let render_pipeline = device.create_render_pipeline(&make_pipeline!(
             &device,
             &bind_group_layout,
@@ -125,7 +153,11 @@ impl<'a> Drawer<'a> {
                     crate::gpu::pipeline::collect_shader(std::path::PathBuf::from("./src")).into(),
                 ),
             }),
-            &texture_bind_group_layout
+            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
+                push_constant_ranges: &[],
+            }),
         ));
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -138,6 +170,7 @@ impl<'a> Drawer<'a> {
             contents: bytemuck::cast_slice(INDICES),
             usage: wgpu::BufferUsages::INDEX,
         });
+
         Self {
             diffuse_bind_group: {
                 let texture = texture::Texture::from_image(
@@ -162,24 +195,31 @@ impl<'a> Drawer<'a> {
                     label: Some("diffuse_bind_group"),
                 })
             },
+            camera_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &camera_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }],
+                label: Some("camera_bind_group"),
+            }),
             window: window::Window::from(window, true),
             surface,
             device,
             queue,
             config,
             render_pipeline,
+            camera,
+            camera_buffer,
             vertex_buffer,
             index_buffer,
             num_indices: INDICES.len() as u32,
         }
     }
-    /// Eine Methode die eine Referenz auf das Fenster des Drawers zurückgibt.
-    pub fn window(&self) -> &winit::window::Window {
-        &self.window.window
-    }
     /// Eine Methode welche die Fenstergröße anpasst.
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            self.window.resize(new_size);
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
@@ -191,6 +231,18 @@ impl<'a> Drawer<'a> {
         if let Some(..) = keys.esc.just_pressed() {
             self.window.flip_focus()
         }
+        if keys.w.state.into() {
+            self.camera
+                .move_in_direction(glam::Vec3::new(0.0, 0.0, 0.00000001), delta_time);
+        } else if keys.s.state.into() {
+            self.camera
+                .move_in_direction(glam::Vec3::new(0.0, 0.0, -0.00000001), delta_time);
+        }
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio())),
+        );
 
         let center = glam::Vec3::new(1.1920929e-8, 1.1920929e-8, 0.0);
         let angle_rad = 0.2 * delta_time;
@@ -231,7 +283,10 @@ impl<'a> Drawer<'a> {
                 timestamp_writes: None,
             });
             render_pass.set_pipeline(&self.render_pipeline);
+
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);

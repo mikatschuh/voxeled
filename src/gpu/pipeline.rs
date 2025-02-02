@@ -9,17 +9,11 @@ macro_rules! make_pipeline {
         $bind_group_layout:expr,
         $config:expr,
         $shader:expr,
-        $texture_bind_group_layout:expr
+        $layout:expr,
     ) => {
         wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
-            layout: Some(
-                &$device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[$texture_bind_group_layout],
-                    push_constant_ranges: &[],
-                }),
-            ),
+            layout: Some(&$layout),
             vertex: wgpu::VertexState {
                 module: &$shader,
                 entry_point: "vs_main",

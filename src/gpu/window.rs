@@ -1,10 +1,14 @@
-use winit::{dpi::PhysicalSize, window};
+use winit::{
+    dpi::PhysicalSize,
+    window::{self, WindowId},
+};
 
 /// Ein Wrapper für das winit::window::Window, welches das fokussieren und ändern des GrabMode kapselt.
 pub struct Window<'a> {
-    pub focused: bool,
-    pub size: PhysicalSize<u32>,
-    pub window: &'a window::Window,
+    pub(super) window: &'a window::Window,
+    focused: bool,
+    size: PhysicalSize<u32>,
+    aspect_ratio: f32,
 }
 impl<'a> Window<'a> {
     /// Erzeugt eine Window - Instanz wobei der GrabMode an focused anpasst
@@ -21,9 +25,11 @@ impl<'a> Window<'a> {
                 .set_cursor_grab(window::CursorGrabMode::None)
                 .unwrap();
         }
+        let size = window.inner_size();
         Self {
             focused,
-            size: window.inner_size(),
+            size,
+            aspect_ratio: size.width as f32 / size.height as f32,
             window,
         }
     }
@@ -59,5 +65,27 @@ impl<'a> Window<'a> {
             }
         }
         self.focused = !self.focused
+    }
+
+    /// Setzt die Fenstergröße auf einen neuen Wert.
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        self.aspect_ratio = new_size.width as f32 / new_size.height as f32;
+        self.size = new_size;
+    }
+    /// Gibt des Fensters Seitenverhältnis (Breite / Höhe) zurück.
+    pub fn aspect_ratio(&self) -> f32 {
+        self.aspect_ratio
+    }
+    /// Wrapper für winit::window::Window::id().
+    pub fn id(&self) -> WindowId {
+        self.window.id()
+    }
+    /// Gibt die innere Größe des Fensters zurück.
+    pub fn size(&self) -> PhysicalSize<u32> {
+        self.size
+    }
+    /// Wrapper für winit::window::Window::request_redraw().
+    pub fn request_redraw(&self) {
+        self.window.request_redraw()
     }
 }
