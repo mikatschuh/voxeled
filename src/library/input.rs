@@ -35,13 +35,18 @@ pub struct State {
     pub since: Instant,
 }
 impl State {
-    /// Funktion die zurück gibt ob ein Zustand JustPressed ist.
-    pub fn just_pressed(&self) -> Option<u128> {
-        if let InputState::JustPressed = self.state {
-            Some(self.since.elapsed().as_nanos())
-        } else {
-            None
-        }
+    /// Methode die zurück gibt ob eine Taste in diesem Frame gedrückt wurde.
+    /// Die Methode gibt nur wahr zurück wenn die Taste im vorherigen Frame nicht gedrückt wurde.
+    pub fn just_pressed(&self) -> bool {
+        self.state == InputState::JustPressed
+    }
+    /// Methode die zurück gibt ob eine Taste in diesem Frame losgelassen wurde.
+    pub fn just_released(&self) -> bool {
+        self.state == InputState::JustReleased
+    }
+    /// Methode die zurückgibt ob die Taste gerade gedrückt ist.
+    pub fn pressed(&self) -> bool {
+        self.state.into()
     }
 }
 
@@ -63,10 +68,8 @@ pub struct Keys {
     pub mouse_motion: Option<(f64, f64)>,
     pub mouse_wheel: Option<f32>,
 }
-
-impl Keys {
-    /// Erstellt eine neue Keys Instanz.
-    pub fn new() -> Self {
+impl Default for Keys {
+    fn default() -> Self {
         Self {
             w: State {
                 state: InputState::NotPressed,
@@ -114,6 +117,13 @@ impl Keys {
             mouse_motion: None,
             mouse_wheel: None,
         }
+    }
+}
+
+impl Keys {
+    /// Erstellt eine neue Keys Instanz.
+    pub fn new() -> Self {
+        Self::default()
     }
     /// Funktion die true zurückgibt wenn das Event ein Input war und die Karte aller relevanten Tasten aktualisiert.
     /// Sie gibt false zurück wenn sie das Event nicht handeln konnte. Die Funktion funktioniert also wie ein Sieb,

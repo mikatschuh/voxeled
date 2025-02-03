@@ -1,4 +1,5 @@
 use glam::{Quat, Vec3};
+/// Repräsentiert einen einzigartigen Punkt in der Szene.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub(super) struct Vertex {
@@ -31,6 +32,7 @@ pub(super) const VERTICES: &[Vertex] = &[
 ];
 pub const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 impl Vertex {
+    /// Gibt das korrekte Layout für die Vertices zurück.
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         let mut average_position = Vec3::ZERO;
         for vertex in VERTICES.iter() {

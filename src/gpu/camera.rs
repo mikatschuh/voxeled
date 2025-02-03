@@ -46,8 +46,7 @@ impl Camera {
         let y = self.rot.y;
         let z = self.rot.z;
         let w = self.rot.w;
-
-        // Berechne Rotationskomponenten
+        // Calculate rotation components
         let xx = x * x;
         let yy = y * y;
         let zz = z * z;
@@ -57,14 +56,21 @@ impl Camera {
         let wx = w * x;
         let wy = w * y;
         let wz = w * z;
-
-        // Position wird negativ angewendet für View Matrix
+        // Apply negative position for view matrix
         let tx = -self.pos.x;
         let ty = -self.pos.y;
         let tz = -self.pos.z;
 
-        // Kombiniere Rotation und Translation direkt in einer 4x4 Matrix
-        (Mat4::from_cols_array_2d(&[
+        // First create projection matrix
+        let proj = Mat4::perspective_rh(
+            std::f32::consts::FRAC_PI_3, // 45 degree field of view
+            aspect_ratio,
+            0.1,    // near plane
+            1000.0, // far plane
+        );
+
+        // Then create and multiply with view matrix
+        let view = Mat4::from_cols_array_2d(&[
             [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0],
             [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0],
             [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0],
@@ -74,12 +80,8 @@ impl Camera {
                 tx * 2.0 * (xz - wy) + ty * 2.0 * (yz + wx) + tz * (1.0 - 2.0 * (xx + yy)),
                 1.0,
             ],
-        ]) * glam::Mat4::perspective_rh(
-            std::f32::consts::FRAC_PI_4, // 45 Grad Field of View
-            aspect_ratio,                // Bildschirmverhältnis (z.B. width/height)
-            0.1,                         // near plane
-            100.0,                       // far plane
-        ))
-        .to_cols_array_2d()
+        ]);
+
+        (proj * view).to_cols_array_2d()
     }
 }

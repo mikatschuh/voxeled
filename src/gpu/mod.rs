@@ -228,15 +228,15 @@ impl<'a> Drawer<'a> {
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
         // glam::Vec3::new((keys.w - keys.s) as f32, (keys.space - keys.shift) as f32, (keys.d - keys.a) as f32).normalize_or_zero();
-        if let Some(..) = keys.esc.just_pressed() {
+        if keys.esc.just_pressed() {
             self.window.flip_focus()
         }
-        if keys.w.state.into() {
-            self.camera
-                .move_in_direction(glam::Vec3::new(0.0, 0.0, 0.00000001), delta_time);
-        } else if keys.s.state.into() {
+        if keys.w.pressed() {
             self.camera
                 .move_in_direction(glam::Vec3::new(0.0, 0.0, -0.00000001), delta_time);
+        } else if keys.s.pressed() {
+            self.camera
+                .move_in_direction(glam::Vec3::new(0.0, 0.0, 0.00000001), delta_time);
         }
         self.queue.write_buffer(
             &self.camera_buffer,
