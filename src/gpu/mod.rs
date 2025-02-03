@@ -236,23 +236,23 @@ impl<'a> Drawer<'a> {
     }
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
-        // glam::Vec3::new((keys.w - keys.s) as f32, (keys.space - keys.shift) as f32, (keys.d - keys.a) as f32).normalize_or_zero();
-        if keys.esc.just_pressed() {
-            self.window.flip_focus()
-        }
-        if keys.w.pressed() {
-            self.camera
-                .move_in_direction(glam::Vec3::new(0.0, 0.0, -0.00000001), delta_time);
-        } else if keys.s.pressed() {
-            self.camera
-                .move_in_direction(glam::Vec3::new(0.0, 0.0, 0.00000001), delta_time);
+        self.camera.move_in_direction(
+            glam::Vec3::new(
+                0.0,
+                0.0,
+                keys.s.pressed() as u32 as f32 - keys.w.pressed() as u32 as f32,
+            )
+            .normalize_or_zero(),
+            delta_time,
+        );
+        if let Some((x, y)) = keys.mouse_motion {
+            self.camera.rotate_around_angle(-x as f32, -y as f32, 0.0);
         }
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio())),
         );
-
         let center = glam::Vec3::new(1.1920929e-8, 1.1920929e-8, 0.0);
         let angle_rad = 0.2 * delta_time;
     }

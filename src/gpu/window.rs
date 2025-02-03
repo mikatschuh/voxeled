@@ -33,8 +33,11 @@ impl<'a> Window<'a> {
             window,
         }
     }
+    pub fn focused(&self) -> bool {
+        self.focused
+    }
     /// Eine Methode die den Focus verstellt
-    pub fn _set_focus(&mut self, focused: bool) {
+    pub fn set_focus(&mut self, focused: bool) {
         if focused {
             self.window.set_cursor_visible(false);
             self.window

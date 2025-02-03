@@ -21,7 +21,7 @@ impl Default for Camera {
 }
 impl Camera {
     pub const SENSITIVITY: f32 = 0.0005;
-    pub const SPEED: f32 = 0.17;
+    pub const SPEED: f32 = 0.0000000017;
 
     const NEAR_PLANE: f32 = 0.001;
     const FAR_PLANE: f32 = 1000.0;

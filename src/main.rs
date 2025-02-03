@@ -1,15 +1,12 @@
-use std::time::{Duration, Instant};
 use winit::{
     dpi::PhysicalSize,
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-
-const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
-
 mod gpu;
 mod library;
+mod playground;
 use library::*;
 
 fn main() {
@@ -31,7 +28,6 @@ async fn run() {
     let mut keys = input::Keys::new();
     event_loop // main event loop
         .run(move |event, control_flow| {
-            // control_flow.set_control_flow(ControlFlow::Poll);
             if !keys.handled_event(drawer.window.id(), &event) {
                 match event {
                     Event::NewEvents(StartCause::Init) => {
@@ -56,7 +52,9 @@ async fn run() {
                                 // This tells winit that we want another frame after this one
                                 drawer.window.request_redraw();
 
-                                drawer.update(&keys, delta_time.update() as f32);
+                                if keys.esc.just_pressed() { drawer.window.flip_focus() }
+
+                                if drawer.window.focused() { drawer.update(&keys, delta_time.update() as f32) }
 
                                 match drawer.draw() {
                                     Ok(_) => {}

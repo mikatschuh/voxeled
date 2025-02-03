@@ -65,7 +65,7 @@ impl State {
         }
     }
     /// Methode die überprüft ob sich die Zeit die eine Taste schon gedrückt wurde in einem gegebenen Bereich befindet.
-    pub fn pressed_for(&self, time: std::ops::Range<u128>) -> bool {
+    pub fn pressed_for(&self, time: Range<u128>) -> bool {
         if let InputState::Pressed | InputState::JustPressed = self.state {
             let time_pressed = self.since.elapsed().as_nanos();
             time.start <= time_pressed && time_pressed <= time.end
@@ -75,7 +75,7 @@ impl State {
     }
     /// Methode die überprüft ob sich die Zeit die eine Taste schon nicht mehr gedrückt wurde
     /// in einem gegebenen Bereich befindet.
-    pub fn released_for(&self, time: std::ops::Range<u128>) -> bool {
+    pub fn released_for(&self, time: Range<u128>) -> bool {
         if let InputState::NotPressed | InputState::JustReleased = self.state {
             let time_released = self.since.elapsed().as_nanos();
             time.start <= time_released && time_released <= time.end
@@ -84,7 +84,6 @@ impl State {
         }
     }
 }
-
 /// Eine Struktur die eine Karte aller relevanten Tasten und ihren Zustand speichert.
 pub struct Keys {
     pub w: State,
