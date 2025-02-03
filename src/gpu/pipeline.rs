@@ -42,7 +42,13 @@ macro_rules! make_pipeline {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -53,7 +59,15 @@ macro_rules! make_pipeline {
         }
     };
 }
-pub(super) fn collect_shader(path: PathBuf) -> String {
+pub(super) fn make_shader() -> wgpu::ShaderModuleDescriptor<'static> {
+    wgpu::ShaderModuleDescriptor {
+        label: Some("main"),
+        source: wgpu::ShaderSource::Wgsl(
+            crate::gpu::pipeline::collect_shader(std::path::PathBuf::from("./src")).into(),
+        ),
+    }
+}
+fn collect_shader(path: PathBuf) -> String {
     let mut shader_code = String::new();
     for dir_entry in if let Ok(dir_iter) = fs::read_dir(&path) {
         dir_iter

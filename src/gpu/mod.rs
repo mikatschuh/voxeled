@@ -6,6 +6,7 @@ pub mod window;
 
 use crate::make_pipeline;
 use camera::Camera;
+use texture::Texture;
 use vertex::*;
 use wgpu::util::DeviceExt;
 
@@ -20,6 +21,7 @@ pub struct Drawer<'a> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
+    depth_texture: Texture,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
@@ -125,6 +127,8 @@ impl<'a> Drawer<'a> {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
+        let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
+
         let camera = Camera::default();
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -151,12 +155,7 @@ impl<'a> Drawer<'a> {
             &device,
             &bind_group_layout,
             &config,
-            &device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("main"),
-                source: wgpu::ShaderSource::Wgsl(
-                    crate::gpu::pipeline::collect_shader(std::path::PathBuf::from("./src")).into(),
-                ),
-            }),
+            device.create_shader_module(crate::gpu::pipeline::make_shader()),
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
@@ -177,7 +176,7 @@ impl<'a> Drawer<'a> {
 
         Self {
             diffuse_bind_group: {
-                let texture = texture::Texture::from_image(
+                let texture = Texture::from_image(
                     &device,
                     &queue,
                     &image::load_from_memory(include_bytes!("happy-tree.png")).unwrap(),
@@ -212,6 +211,7 @@ impl<'a> Drawer<'a> {
             device,
             queue,
             config,
+            depth_texture,
             render_pipeline,
             camera,
             camera_buffer,
@@ -226,6 +226,8 @@ impl<'a> Drawer<'a> {
             self.window.resize(new_size);
             self.config.width = new_size.width;
             self.config.height = new_size.height;
+            self.depth_texture =
+                texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
             self.surface.configure(&self.device, &self.config);
         }
     }
@@ -285,7 +287,14 @@ impl<'a> Drawer<'a> {
                         },
                     }),
                 ],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });

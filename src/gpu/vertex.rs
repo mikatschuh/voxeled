@@ -25,8 +25,24 @@ pub(super) const VERTICES: &[Vertex] = &[
         position: Vec3::new(0.5, -0.5, 1.0),
         tex_coords: [1.0, 1.0],
     }, // D
+    Vertex {
+        position: Vec3::new(0.5 + 1.0, 0.5, 0.7),
+        tex_coords: [1.0, 0.0],
+    }, // A
+    Vertex {
+        position: Vec3::new(-0.5 + 1.0, 0.5, 0.7),
+        tex_coords: [0.0, 0.0],
+    }, // B
+    Vertex {
+        position: Vec3::new(-0.5 + 1.0, -0.5, 0.7),
+        tex_coords: [0.0, 1.0],
+    }, // C
+    Vertex {
+        position: Vec3::new(0.5 + 1.0, -0.5, 0.7),
+        tex_coords: [1.0, 1.0],
+    }, // D
 ];
-pub const INDICES: &[u16] = &[0, 1, 2, 2, 3, 0];
+pub const INDICES: &[u16] = &[0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4];
 impl Vertex {
     /// Gibt das korrekte Layout für die Vertices zurück.
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
