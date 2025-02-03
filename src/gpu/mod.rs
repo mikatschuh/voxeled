@@ -38,7 +38,11 @@ pub struct Drawer<'a> {
 
 impl<'a> Drawer<'a> {
     /// Diese Funktion erstellt einen Drawer der mit dem aktuellen Fenster verbunden ist.
-    pub async fn connect_to(window: &'a winit::window::Window) -> Drawer<'a> {
+    /// Außerdem nimmt sie einen PresentMode entgegen mit dem auf das Fenster gezeichnet werden soll.
+    pub async fn connect_to(
+        window: &'a winit::window::Window,
+        present_mode: wgpu::PresentMode,
+    ) -> Drawer<'a> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -90,7 +94,7 @@ impl<'a> Drawer<'a> {
                 .unwrap_or(surface_caps.formats[0]),
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Immediate, // surface_caps.present_modes[0] will select it at runtime
+            present_mode, // surface_caps.present_modes[0] will select it at runtime
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
@@ -224,6 +228,9 @@ impl<'a> Drawer<'a> {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
         }
+    }
+    pub fn reconfigure(&mut self) {
+        self.surface.configure(&self.device, &self.config);
     }
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {

@@ -23,6 +23,9 @@ impl Camera {
     pub const SENSITIVITY: f32 = 0.0005;
     pub const SPEED: f32 = 0.17;
 
+    const NEAR_PLANE: f32 = 0.001;
+    const FAR_PLANE: f32 = 1000.0;
+
     /// Dreht die Kamera um einen Winkel multipliziert mit der Kamera Sensitivität.
     pub fn rotate_around_angle(&mut self, yaw: f32, pitch: f32, gear: f32) {
         self.yaw += yaw * Self::SENSITIVITY;
@@ -37,7 +40,6 @@ impl Camera {
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
     pub fn move_in_direction(&mut self, vector: Vec3, delta_time: f32) {
         self.pos += self.rot * (vector * Self::SPEED * delta_time);
-        dbg!(self);
     }
     /// Viel zu komplizierte Mathematik für das was passiert..
     /// Diese Funktion gibt eine 4*4 Matrix zurück um die Punkte auf den Bildschirm zu projezieren.
@@ -65,8 +67,8 @@ impl Camera {
         let proj = Mat4::perspective_rh(
             std::f32::consts::FRAC_PI_3, // 45 degree field of view
             aspect_ratio,
-            0.1,    // near plane
-            1000.0, // far plane
+            Self::NEAR_PLANE,
+            Self::FAR_PLANE,
         );
 
         // Then create and multiply with view matrix

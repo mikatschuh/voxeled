@@ -1,4 +1,12 @@
-use winit::{dpi::PhysicalSize, event::*, event_loop::EventLoop, window::WindowBuilder};
+use std::time::{Duration, Instant};
+use winit::{
+    dpi::PhysicalSize,
+    event::*,
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
+
+const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
 
 mod gpu;
 mod library;
@@ -18,17 +26,28 @@ async fn run() {
         }) // this is the window configuration
         .build(&event_loop)
         .unwrap();
-    let mut drawer = gpu::Drawer::connect_to(&window).await; // this connectes a drawer to the window
-    let mut delta_time = time::DeltaTime::new();
+    let mut drawer = gpu::Drawer::connect_to(&window, wgpu::PresentMode::Fifo).await; // this connectes a drawer to the window
+    let mut delta_time = time::DeltaTime::now();
     let mut keys = input::Keys::new();
     event_loop // main event loop
         .run(move |event, control_flow| {
+            // control_flow.set_control_flow(ControlFlow::Poll);
             if !keys.handled_event(drawer.window.id(), &event) {
                 match event {
+                    Event::NewEvents(StartCause::Init) => {
+                        // Initial frame time
+                        delta_time = time::DeltaTime::now();
+                    }
                     Event::WindowEvent { event, window_id } // checks if its the right window
                         if window_id == drawer.window.id() =>
                     {
                         match event {
+                            WindowEvent::Occluded(occluded) => if occluded {
+                                control_flow.set_control_flow(ControlFlow::Wait);
+                            } else {
+                                drawer.reconfigure()
+                            }
+
                             WindowEvent::CloseRequested => control_flow.exit(),
                             WindowEvent::Resized(physical_size) => {
                                 drawer.resize(physical_size);
@@ -44,7 +63,7 @@ async fn run() {
                                     // Reconfigure the surface if it's lost or outdated
                                     Err(
                                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
-                                    ) => drawer.resize(drawer.window.size()),
+                                    ) => drawer.reconfigure(),
                                     // The system is out of memory, we should probably quit
                                     Err(wgpu::SurfaceError::OutOfMemory) => {
                                         log::error!("OutOfMemory");

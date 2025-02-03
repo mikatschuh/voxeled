@@ -80,10 +80,6 @@ impl<'a> Window<'a> {
     pub fn id(&self) -> WindowId {
         self.window.id()
     }
-    /// Gibt die innere Größe des Fensters zurück.
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size
-    }
     /// Wrapper für winit::window::Window::request_redraw().
     pub fn request_redraw(&self) {
         self.window.request_redraw()

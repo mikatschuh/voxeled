@@ -6,7 +6,7 @@ pub struct DeltaTime {
 }
 impl DeltaTime {
     /// Erstellt eine neue DeltaTime - Instanz.
-    pub fn new() -> Self {
+    pub fn now() -> Self {
         Self {
             last_update: Instant::now(),
         }
