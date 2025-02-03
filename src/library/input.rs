@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{ops::Range, time::Instant};
 use winit::{
     event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
@@ -47,6 +47,41 @@ impl State {
     /// Methode die zurückgibt ob die Taste gerade gedrückt ist.
     pub fn pressed(&self) -> bool {
         self.state.into()
+    }
+    /// Methode die die Zeit in Nanosekunden zurückgibt die die Taste aktuell schon gedrückt wurde.
+    pub fn time_pressed(&self) -> Option<u128> {
+        if self.state.into() {
+            Some(self.since.elapsed().as_nanos())
+        } else {
+            None
+        }
+    }
+    /// Methode die die Zeit in Nanosekunden zurückgibt die die Taste jetzt schon losgelassen wurde.
+    pub fn time_released(&self) -> Option<u128> {
+        if !<InputState as Into<bool>>::into(self.state) {
+            Some(self.since.elapsed().as_nanos())
+        } else {
+            None
+        }
+    }
+    /// Methode die überprüft ob sich die Zeit die eine Taste schon gedrückt wurde in einem gegebenen Bereich befindet.
+    pub fn pressed_for(&self, time: std::ops::Range<u128>) -> bool {
+        if let InputState::Pressed | InputState::JustPressed = self.state {
+            let time_pressed = self.since.elapsed().as_nanos();
+            time.start <= time_pressed && time_pressed <= time.end
+        } else {
+            false
+        }
+    }
+    /// Methode die überprüft ob sich die Zeit die eine Taste schon nicht mehr gedrückt wurde
+    /// in einem gegebenen Bereich befindet.
+    pub fn released_for(&self, time: std::ops::Range<u128>) -> bool {
+        if let InputState::NotPressed | InputState::JustReleased = self.state {
+            let time_released = self.since.elapsed().as_nanos();
+            time.start <= time_released && time_released <= time.end
+        } else {
+            false
+        }
     }
 }
 
