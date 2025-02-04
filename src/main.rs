@@ -1,3 +1,4 @@
+use gpu::camera::Camera3d;
 use winit::{
     dpi::PhysicalSize,
     event::*,
@@ -23,7 +24,12 @@ async fn run() {
         }) // this is the window configuration
         .build(&event_loop)
         .unwrap();
-    let mut drawer = gpu::Drawer::connect_to(&window, wgpu::PresentMode::Fifo).await; // this connectes a drawer to the window
+    let mut drawer = gpu::Drawer::connect_to(
+        &window,
+        wgpu::PresentMode::Fifo,
+        gpu::camera::CinematicThirdPersonCamera::new(glam::Vec3::ZERO, 0.0, 0.0, 0.0),
+    )
+    .await; // this connectes a drawer to the window
     let mut delta_time = time::DeltaTime::now();
     let mut keys = input::Keys::new();
     event_loop // main event loop

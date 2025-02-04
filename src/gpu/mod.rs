@@ -1,17 +1,18 @@
-mod camera;
+pub mod camera;
+pub mod exotic_cameras;
 mod pipeline;
 mod texture;
 mod vertex;
 pub mod window;
 
 use crate::make_pipeline;
-use camera::{Camera, Camera3d};
+use camera::Camera3d;
 use texture::Texture;
 use vertex::*;
 use wgpu::util::DeviceExt;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
-pub struct Drawer<'a> {
+pub struct Drawer<'a, C: Camera3d> {
     // bind groups:
     diffuse_bind_group: wgpu::BindGroup,
     camera_bind_group: wgpu::BindGroup,
@@ -29,7 +30,7 @@ pub struct Drawer<'a> {
 
     render_pipeline: wgpu::RenderPipeline,
 
-    camera: Camera,
+    camera: C,
     camera_buffer: wgpu::Buffer,
 
     // Asset things:
@@ -38,13 +39,14 @@ pub struct Drawer<'a> {
     num_indices: u32,
 }
 
-impl<'a> Drawer<'a> {
+impl<'a, C: Camera3d> Drawer<'a, C> {
     /// Diese Funktion erstellt einen Drawer der mit dem aktuellen Fenster verbunden ist.
     /// Außerdem nimmt sie einen PresentMode entgegen mit dem auf das Fenster gezeichnet werden soll.
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-    ) -> Drawer<'a> {
+        camera: C,
+    ) -> Drawer<'a, C> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -129,7 +131,6 @@ impl<'a> Drawer<'a> {
             });
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
 
-        let camera = Camera::default();
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(
@@ -245,9 +246,10 @@ impl<'a> Drawer<'a> {
             .normalize_or_zero(),
             delta_time,
         );
-        if let Some((x, y)) = keys.mouse_motion {
-            self.camera.rotate_around_angle(-x as f32, -y as f32, 0.0);
-        }
+        let (x, y) = keys.mouse_motion;
+        self.camera
+            .rotate_around_angle(glam::Vec3::new(-x as f32, -y as f32, 0.0));
+
         self.queue.write_buffer(
             &self.camera_buffer,
             0,

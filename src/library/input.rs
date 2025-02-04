@@ -99,8 +99,8 @@ pub struct Keys {
     pub shift: State,
     pub esc: State,
 
-    pub mouse_motion: Option<(f64, f64)>,
-    pub mouse_wheel: Option<f32>,
+    pub mouse_motion: (f64, f64),
+    pub mouse_wheel: f32,
 }
 impl Default for Keys {
     fn default() -> Self {
@@ -148,8 +148,8 @@ impl Default for Keys {
                 since: Instant::now(),
             },
 
-            mouse_motion: None,
-            mouse_wheel: None,
+            mouse_motion: (0.0, 0.0),
+            mouse_wheel: 0.0,
         }
     }
 }
@@ -166,10 +166,10 @@ impl Keys {
         match event {
             Event::DeviceEvent { event, .. } => match event {
                 DeviceEvent::MouseMotion { delta } => {
-                    self.mouse_motion = Some(*delta);
+                    self.mouse_motion = *delta;
                 }
                 DeviceEvent::MouseWheel { delta } => match delta {
-                    MouseScrollDelta::LineDelta(_, y) => self.mouse_wheel = Some(*y),
+                    MouseScrollDelta::LineDelta(_, y) => self.mouse_wheel = *y,
                     _ => return false,
                 },
                 _ => return false,
@@ -242,11 +242,8 @@ impl Keys {
                 key.state = InputState::NotPressed;
             }
         }
-        if let Some(..) = self.mouse_motion {
-            self.mouse_motion = None
-        }
-        if let Some(..) = self.mouse_wheel {
-            self.mouse_wheel = None
-        }
+        self.mouse_motion = (0.0, 0.0);
+
+        self.mouse_wheel = 0.0
     }
 }
