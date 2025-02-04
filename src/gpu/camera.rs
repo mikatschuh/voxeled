@@ -1,5 +1,20 @@
 use glam::{Mat4, Quat, Vec3};
 
+/// Speichert die Eigenschaften einer 3d Kamera.
+pub trait Camera3d {
+    const SENSITIVITY: f32;
+    const SPEED: f32;
+
+    const NEAR_PLANE: f32 = 0.001;
+    const FAR_PLANE: f32 = 1000.0;
+
+    fn rotate_around_angle(&mut self, yaw: f32, pitch: f32, gear: f32);
+
+    fn move_in_direction(&mut self, vector: Vec3, delta_time: f32);
+
+    fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4];
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Camera {
     pub pos: Vec3,
@@ -19,15 +34,15 @@ impl Default for Camera {
         }
     }
 }
-impl Camera {
-    pub const SENSITIVITY: f32 = 0.0005;
-    pub const SPEED: f32 = 0.0000000017;
+impl Camera3d for Camera {
+    const SENSITIVITY: f32 = 0.001;
+    const SPEED: f32 = 0.0000000017;
 
     const NEAR_PLANE: f32 = 0.001;
     const FAR_PLANE: f32 = 1000.0;
 
     /// Dreht die Kamera um einen Winkel multipliziert mit der Kamera Sensitivität.
-    pub fn rotate_around_angle(&mut self, yaw: f32, pitch: f32, gear: f32) {
+    fn rotate_around_angle(&mut self, yaw: f32, pitch: f32, gear: f32) {
         self.yaw += yaw * Self::SENSITIVITY;
         self.pitch += pitch * Self::SENSITIVITY;
         self.gear += gear * Self::SENSITIVITY;
@@ -38,52 +53,22 @@ impl Camera {
             * Quat::from_axis_angle(Vec3::Z, self.gear);
     }
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
-    pub fn move_in_direction(&mut self, vector: Vec3, delta_time: f32) {
+    fn move_in_direction(&mut self, vector: Vec3, delta_time: f32) {
         self.pos += self.rot * (vector * Self::SPEED * delta_time);
     }
-    /// Viel zu komplizierte Mathematik für das was passiert..
     /// Diese Funktion gibt eine 4*4 Matrix zurück um die Punkte auf den Bildschirm zu projezieren.
-    pub fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4] {
-        let x = self.rot.x;
-        let y = self.rot.y;
-        let z = self.rot.z;
-        let w = self.rot.w;
-        // Calculate rotation components
-        let xx = x * x;
-        let yy = y * y;
-        let zz = z * z;
-        let xy = x * y;
-        let xz = x * z;
-        let yz = y * z;
-        let wx = w * x;
-        let wy = w * y;
-        let wz = w * z;
-        // Apply negative position for view matrix
-        let tx = -self.pos.x;
-        let ty = -self.pos.y;
-        let tz = -self.pos.z;
-
-        // First create projection matrix
+    fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4] {
         let proj = Mat4::perspective_rh(
-            std::f32::consts::FRAC_PI_3, // 45 degree field of view
+            std::f32::consts::FRAC_PI_3,
             aspect_ratio,
             Self::NEAR_PLANE,
             Self::FAR_PLANE,
         );
 
-        // Then create and multiply with view matrix
-        let view = Mat4::from_cols_array_2d(&[
-            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0],
-            [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0],
-            [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0],
-            [
-                tx * (1.0 - 2.0 * (yy + zz)) + ty * 2.0 * (xy - wz) + tz * 2.0 * (xz + wy),
-                tx * 2.0 * (xy + wz) + ty * (1.0 - 2.0 * (xx + zz)) + tz * 2.0 * (yz - wx),
-                tx * 2.0 * (xz - wy) + ty * 2.0 * (yz + wx) + tz * (1.0 - 2.0 * (xx + yy)),
-                1.0,
-            ],
-        ]);
+        // Erstelle die View-Matrix
+        let view = Mat4::from_rotation_translation(self.rot, self.pos).inverse();
 
+        // Kombiniere Projektion und View
         (proj * view).to_cols_array_2d()
     }
 }

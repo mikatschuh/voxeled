@@ -5,7 +5,7 @@ mod vertex;
 pub mod window;
 
 use crate::make_pipeline;
-use camera::Camera;
+use camera::{Camera, Camera3d};
 use texture::Texture;
 use vertex::*;
 use wgpu::util::DeviceExt;
