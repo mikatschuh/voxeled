@@ -2,7 +2,7 @@ pub mod camera;
 pub mod exotic_cameras;
 mod pipeline;
 mod texture;
-mod vertex;
+pub mod vertex;
 pub mod window;
 
 use crate::make_pipeline;
@@ -180,7 +180,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
                 let texture = Texture::from_image(
                     &device,
                     &queue,
-                    &image::load_from_memory(include_bytes!("happy-tree.png")).unwrap(),
+                    &image::load_from_memory(include_bytes!("pixil-frame-0.png")).unwrap(),
                     Some("Test Texture"),
                 );
 
@@ -239,8 +239,8 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
         self.camera.move_in_direction(
             glam::Vec3::new(
-                0.0,
-                0.0,
+                keys.d.pressed() as u32 as f32 - keys.a.pressed() as u32 as f32,
+                keys.space.pressed() as u32 as f32 - keys.shift.pressed() as u32 as f32,
                 keys.s.pressed() as u32 as f32 - keys.w.pressed() as u32 as f32,
             )
             .normalize_or_zero(),

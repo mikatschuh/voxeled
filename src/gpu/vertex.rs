@@ -2,7 +2,7 @@ use glam::{Quat, Vec3};
 /// Repräsentiert einen einzigartigen Punkt in der Szene.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub(super) struct Vertex {
+pub struct Vertex {
     pub position: Vec3,
     pub tex_coords: [f32; 2],
 }

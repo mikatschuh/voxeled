@@ -11,6 +11,8 @@ wgpu = "22.0"
 pollster = "0.3"
 bytemuck = { version = "1.16", features = ["derive"] }
 glam = "0.23"
+crossbeam = "0.8.4"
+num_cpus = "1.16"
 
 [dependencies.image]
 version = "0.24"

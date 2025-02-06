@@ -9,6 +9,8 @@ mod gpu;
 mod library;
 mod playground;
 use library::*;
+mod threader;
+use threader::task::Task;
 
 fn main() {
     pollster::block_on(run());
@@ -27,11 +29,13 @@ async fn run() {
     let mut drawer = gpu::Drawer::connect_to(
         &window,
         wgpu::PresentMode::Fifo,
-        gpu::camera::CinematicThirdPersonCamera::new(glam::Vec3::ZERO, 0.0, 0.0, 0.0),
+        gpu::camera::Camera::new(glam::Vec3::ZERO, 0.0, 0.0, 0.0),
     )
     .await; // this connectes a drawer to the window
     let mut delta_time = time::DeltaTime::now();
     let mut keys = input::Keys::new();
+
+    let mut threadpool = threader::Threadpool::new(None);
     event_loop // main event loop
         .run(move |event, control_flow| {
             if !keys.handled_event(drawer.window.id(), &event) {
@@ -39,6 +43,16 @@ async fn run() {
                     Event::NewEvents(StartCause::Init) => {
                         // Initial frame time
                         delta_time = time::DeltaTime::now();
+
+                        for num in 0..10 {
+                            threadpool.priority_queue.push(Task::new_benchmark(format!("priority {}", num).leak()))
+                        }
+                        for num in 0..10 {
+                            threadpool.add_to_first(Task::new_benchmark(format!("first {}", num).leak()))
+                        }
+                        for num in 0..10 {
+                            threadpool.add_to_second(Task::new_benchmark(format!("second {}", num).leak()))
+                        }
                     }
                     Event::WindowEvent { event, window_id } // checks if its the right window
                         if window_id == drawer.window.id() =>

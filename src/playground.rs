@@ -1,10 +1,20 @@
 fn func() {
-    struct Vektor {
-        x: i32,
-        y: i32,
+    let x = Number::new(0);
+    // x = Number(vec![0])
+
+    x.add(Number::new(1));
+}
+
+struct Number(Vec<u64>);
+impl Number {
+    fn new(val: u64) -> Self {
+        Number(vec![val])
     }
-    let mut var = Vektor { x: 10, y: 40 };
-    var.x = 30;
+    fn add(self, other: Self) -> Self {
+        for (i, val) in self.0.into_iter().rev().enumerate() {}
+
+        todo!()
+    }
 }
 
 /*
