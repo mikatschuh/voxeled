@@ -16,7 +16,6 @@ impl Number {
         todo!()
     }
 }
-
 /*
          |¯¯¯¯¯¯¯¯¯¯|
 Input -> | Funktion | -> Ouput

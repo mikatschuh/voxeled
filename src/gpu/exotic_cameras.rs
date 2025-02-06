@@ -8,6 +8,7 @@ pub struct CinematicThirdPersonCamera {
     rot: Quat,
     angle: Vec3,
     rot_vel: Vec3,
+    acc: f32,
 }
 impl Default for CinematicThirdPersonCamera {
     fn default() -> Self {
@@ -16,12 +17,13 @@ impl Default for CinematicThirdPersonCamera {
             rot: Quat::IDENTITY,
             angle: Vec3::ZERO,
             rot_vel: Vec3::ZERO,
+            acc: 0.0000000017,
         }
     }
 }
 impl Camera3d for CinematicThirdPersonCamera {
     const SENSITIVITY: f32 = 0.001;
-    const SPEED: f32 = 0.0000000017;
+    const ACC_CHANGE_SENSITIVITY: f32 = 0.0001;
 
     const NEAR_PLANE: f32 = 0.001;
     const FAR_PLANE: f32 = 1000.0;
@@ -37,24 +39,29 @@ impl Camera3d for CinematicThirdPersonCamera {
                 * Quat::from_axis_angle(Vec3::Z, gear),
             angle: Vec3::new(yaw, pitch, gear),
             rot_vel: Vec3::ZERO,
+            ..Default::default()
         }
     }
 
     /// Dreht die Kamera um einen Winkel multipliziert mit der Kamera Sensitivität.
     fn rotate_around_angle(&mut self, angle: Vec3) {
-        self.rot_vel += angle;
-        self.angle += self.rot_vel * Self::SENSITIVITY;
+        self.rot_vel += angle * Self::SENSITIVITY;
+    }
+    /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
+    fn update(&mut self, vector: Vec3, delta_time: f32) {
+        self.angle += self.rot_vel * delta_time;
 
         self.rot = Quat::IDENTITY
             * Quat::from_axis_angle(Vec3::Y, self.angle.x)
             * Quat::from_axis_angle(Vec3::X, self.angle.y)
             * Quat::from_axis_angle(Vec3::Z, self.angle.z);
 
-        self.rot_vel *= Self::FRICTION
+        self.rot_vel *= Self::FRICTION * delta_time;
+
+        self.pos += self.rot * (vector * self.acc * delta_time);
     }
-    /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
-    fn move_in_direction(&mut self, vector: Vec3, delta_time: f32) {
-        self.pos += self.rot * (vector * Self::SPEED * delta_time);
+    fn update_acc(&mut self, change: f32) {
+        self.acc += change * Self::ACC_CHANGE_SENSITIVITY
     }
     /// Diese Funktion gibt eine 4*4 Matrix zurück um die Punkte auf den Bildschirm zu projezieren.
     fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4] {

@@ -180,7 +180,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
                 let texture = Texture::from_image(
                     &device,
                     &queue,
-                    &image::load_from_memory(include_bytes!("pixil-frame-0.png")).unwrap(),
+                    &image::load_from_memory(include_bytes!("happy-tree.png")).unwrap(),
                     Some("Test Texture"),
                 );
 
@@ -237,7 +237,16 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
     }
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
-        self.camera.move_in_direction(
+        self.camera.rotate_around_angle(glam::Vec3::new(
+            -keys.mouse_motion.x as f32,
+            -keys.mouse_motion.y as f32,
+            0.0,
+        ));
+
+        if keys.mouse_wheel.y != 0.0 {
+            self.camera.update_acc(keys.mouse_wheel.y)
+        }
+        self.camera.update(
             glam::Vec3::new(
                 keys.d.pressed() as u32 as f32 - keys.a.pressed() as u32 as f32,
                 keys.space.pressed() as u32 as f32 - keys.shift.pressed() as u32 as f32,
@@ -246,17 +255,11 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             .normalize_or_zero(),
             delta_time,
         );
-        let (x, y) = keys.mouse_motion;
-        self.camera
-            .rotate_around_angle(glam::Vec3::new(-x as f32, -y as f32, 0.0));
-
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio())),
         );
-        let center = glam::Vec3::new(1.1920929e-8, 1.1920929e-8, 0.0);
-        let angle_rad = 0.2 * delta_time;
     }
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     pub fn draw(&mut self) -> Result<(), wgpu::SurfaceError> {

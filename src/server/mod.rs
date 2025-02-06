@@ -1,1 +1,1 @@
-mod chunk;
+pub mod chunk;

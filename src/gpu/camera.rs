@@ -1,11 +1,12 @@
 use glam::{Mat4, Quat, Vec3};
 
-pub use super::exotic_cameras::CinematicThirdPersonCamera;
+// pub use super::exotic_cameras::CinematicThirdPersonCamera;
 
 /// Speichert die Eigenschaften einer 3d Kamera.
-pub trait Camera3d {
+pub trait Camera3d: Default {
     const SENSITIVITY: f32;
-    const SPEED: f32;
+
+    const ACC_CHANGE_SENSITIVITY: f32;
 
     const NEAR_PLANE: f32;
     const FAR_PLANE: f32;
@@ -16,7 +17,9 @@ pub trait Camera3d {
 
     fn rotate_around_angle(&mut self, angle: Vec3);
 
-    fn move_in_direction(&mut self, vector: Vec3, delta_time: f32);
+    fn update(&mut self, vector: Vec3, delta_time: f32);
+
+    fn update_acc(&mut self, change: f32);
 
     fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4];
 }
@@ -26,6 +29,8 @@ pub struct Camera {
     pos: Vec3,
     rot: Quat,
     angle: Vec3,
+    vel: Vec3,
+    acc: f32,
 }
 impl Default for Camera {
     fn default() -> Self {
@@ -33,12 +38,14 @@ impl Default for Camera {
             pos: Vec3::new(0.0, 0.0, 0.0),
             rot: Quat::IDENTITY,
             angle: Vec3::ZERO,
+            vel: Vec3::ZERO,
+            acc: 0.0000000005,
         }
     }
 }
 impl Camera3d for Camera {
     const SENSITIVITY: f32 = 0.001;
-    const SPEED: f32 = 0.0000000017;
+    const ACC_CHANGE_SENSITIVITY: f32 = 1.0;
 
     const NEAR_PLANE: f32 = 0.001;
     const FAR_PLANE: f32 = 1000.0;
@@ -53,6 +60,7 @@ impl Camera3d for Camera {
                 * Quat::from_axis_angle(Vec3::X, yaw)
                 * Quat::from_axis_angle(Vec3::Z, roll),
             angle: Vec3::new(gear, yaw, roll),
+            ..Default::default()
         }
     }
 
@@ -66,8 +74,22 @@ impl Camera3d for Camera {
             * Quat::from_axis_angle(Vec3::Z, self.angle.z);
     }
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
-    fn move_in_direction(&mut self, vector: Vec3, delta_time: f32) {
-        self.pos += self.rot * (vector * Self::SPEED * delta_time);
+    fn update(&mut self, vector: Vec3, delta_time: f32) {
+        self.vel += self.rot * (vector * self.acc * delta_time);
+
+        self.pos += self.vel;
+
+        self.vel *= Self::FRICTION * delta_time;
+    }
+    fn update_acc(&mut self, change: f32) {
+        let change = -change * Self::ACC_CHANGE_SENSITIVITY;
+        self.acc = (self.acc
+            * if change >= 0.0 {
+                change
+            } else {
+                1.0 / change.abs()
+            })
+        .max(0.000000000000000001)
     }
     /// Diese Funktion gibt eine 4*4 Matrix zurück um die Punkte auf den Bildschirm zu projezieren.
     fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4] {
@@ -79,4 +101,7 @@ impl Camera3d for Camera {
         // Kombiniere Projektion und View
         (proj * view).to_cols_array_2d()
     }
+}
+impl Camera {
+    const FRICTION: f32 = 0.0000001;
 }

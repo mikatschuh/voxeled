@@ -5,9 +5,11 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+
 mod gpu;
 mod library;
 mod playground;
+mod server;
 use library::*;
 mod threader;
 use threader::task::Task;

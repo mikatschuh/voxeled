@@ -8,7 +8,8 @@ struct Chunk {
 }
 enum Entity {}
 
-struct Plane([u32; 32]);
+#[derive(Clone, Copy)]
+struct ChunkFaces([[u32; 32]; 32]);
 
 impl Chunk {
     pub fn with_ground_layer() -> Self {
@@ -19,15 +20,24 @@ impl Chunk {
         }
     }
 }
-pub fn create_faces(bit_map: &[[u32; 32]; 32]) -> [[Plane; 32]; 6] {
-    let mut planes = [[Plane([0; 32]); 32]; 32];
+const NUM_OF_BLOCKS: usize = 5;
+pub fn create_faces(bit_maps: [&[[u32; 32]; 32]; NUM_OF_BLOCKS]) -> [ChunkFaces; 6] {
+    let mut faces = [ChunkFaces([[0; 32]; 32]); 6]; // output value
 
-    for row in self.bitmap.iter() {
-        for block in row.iter() {}
+    // data setup:
+    for plane in 0..32 {
+        for row_index in 0..32 {
+            let mut row = 0_u32;
+            for bit_map in bit_maps.iter() {
+                row |= bit_map[plane][row_index];
+            }
+            faces[0].0[plane][row_index] = row & !((row >> 1)/* | (neighbor_row << 31)*/);
+        }
     }
-    // row = original & !(original >> 1)
+
+    faces
 }
-/* Cullign Algorithm
+/* Cullign Algorithms
 
 integer:
 
@@ -51,3 +61,6 @@ goal: find voxels that arent covered on the left.
 #.#..#...#...#..
 ================
 */
+impl ChunkFaces {
+    //fn to_vertices(self) -> ()
+}

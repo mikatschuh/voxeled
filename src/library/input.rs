@@ -1,5 +1,6 @@
 use std::{ops::Range, time::Instant};
 use winit::{
+    dpi::PhysicalPosition,
     event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
     window::WindowId,
@@ -99,8 +100,8 @@ pub struct Keys {
     pub shift: State,
     pub esc: State,
 
-    pub mouse_motion: (f64, f64),
-    pub mouse_wheel: f32,
+    pub mouse_motion: PhysicalPosition<f64>,
+    pub mouse_wheel: PhysicalPosition<f32>,
 }
 impl Default for Keys {
     fn default() -> Self {
@@ -148,8 +149,8 @@ impl Default for Keys {
                 since: Instant::now(),
             },
 
-            mouse_motion: (0.0, 0.0),
-            mouse_wheel: 0.0,
+            mouse_motion: PhysicalPosition::new(0.0, 0.0),
+            mouse_wheel: PhysicalPosition::new(0.0, 0.0),
         }
     }
 }
@@ -166,11 +167,15 @@ impl Keys {
         match event {
             Event::DeviceEvent { event, .. } => match event {
                 DeviceEvent::MouseMotion { delta } => {
-                    self.mouse_motion = *delta;
+                    self.mouse_motion = PhysicalPosition::new(delta.0, delta.1);
                 }
                 DeviceEvent::MouseWheel { delta } => match delta {
-                    MouseScrollDelta::LineDelta(_, y) => self.mouse_wheel = *y,
-                    _ => return false,
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        self.mouse_wheel = PhysicalPosition::new(*x, *y)
+                    }
+                    MouseScrollDelta::PixelDelta(delta) => {
+                        self.mouse_wheel = PhysicalPosition::new(delta.x as f32, delta.y as f32)
+                    }
                 },
                 _ => return false,
             },
@@ -242,8 +247,8 @@ impl Keys {
                 key.state = InputState::NotPressed;
             }
         }
-        self.mouse_motion = (0.0, 0.0);
+        self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
 
-        self.mouse_wheel = 0.0
+        self.mouse_wheel = PhysicalPosition::new(0.0, 0.0)
     }
 }
