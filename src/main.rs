@@ -9,7 +9,7 @@ use winit::{
 mod gpu;
 mod library;
 mod playground;
-mod server;
+// mod server;
 use library::*;
 mod threader;
 use threader::task::Task;
@@ -66,7 +66,11 @@ async fn run() {
                                 drawer.reconfigure()
                             }
 
-                            WindowEvent::CloseRequested => control_flow.exit(),
+                            WindowEvent::CloseRequested => {
+                                // do saving and stuff
+
+                                control_flow.exit()
+                            },
                             WindowEvent::Resized(physical_size) => {
                                 drawer.resize(physical_size);
                             }

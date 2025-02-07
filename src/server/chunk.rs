@@ -1,9 +1,25 @@
 use crate::gpu::vertex::Vertex;
 use glam::IVec3;
 
-struct Chunk {
+pub struct Chunks {
+    chunks: Vec<Chunk>,
+}
+
+pub struct ChunkHandle {
+    chunk: *mut Chunk,
+}
+
+impl Chunks {
+    pub fn get_handle() -> ChunkHandle {
+        todo!()
+    }
+}
+
+pub struct Chunk {
     pos: IVec3,
-    bitmap: [[u32; 32]; 32],
+    solid_bit_map_x: [[u32; 32]; 32],
+    solid_bit_map_y: [[u32; 32]; 32],
+    solid_bit_map_z: [[u32; 32]; 32],
     entities: Vec<Entity>,
 }
 enum Entity {}
@@ -15,13 +31,15 @@ impl Chunk {
     pub fn with_ground_layer() -> Self {
         Self {
             pos: IVec3::ZERO,
-            bitmap: [[1; 32]; 32],
+            solid_bit_map_x: [[0; 32]; 32],
+            solid_bit_map_y: [[0; 32]; 32],
+            solid_bit_map_z: [[0; 32]; 32],
             entities: Vec::new(),
         }
     }
 }
 const NUM_OF_BLOCKS: usize = 5;
-pub fn create_faces(bit_maps: [&[[u32; 32]; 32]; NUM_OF_BLOCKS]) -> [ChunkFaces; 6] {
+pub fn create_faces(chunk: &Chunk) -> [ChunkFaces; 6] {
     let mut faces = [ChunkFaces([[0; 32]; 32]); 6]; // output value
 
     // data setup:
@@ -62,5 +80,14 @@ goal: find voxels that arent covered on the left.
 ================
 */
 impl ChunkFaces {
-    //fn to_vertices(self) -> ()
+    fn to_vertices(self) -> (&'static [Vertex], &'static [u16]) {
+        let mut vertices = Vec::new(); // the points
+        let mut indices = Vec::new(); // which points form a triangle
+
+        for (plane_num, plane) in self.0.into_iter().enumerate() {
+            for (row_num, row) in plane.into_iter().enumerate() {}
+        }
+
+        (vertices.leak(), indices.leak())
+    }
 }
