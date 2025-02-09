@@ -7,10 +7,10 @@ use winit::{
 };
 
 mod gpu;
-mod library;
+mod input;
 mod playground;
+mod time;
 // mod server;
-use library::*;
 mod threader;
 use threader::task::Task;
 
