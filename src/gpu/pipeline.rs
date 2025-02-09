@@ -1,7 +1,6 @@
 use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
-
 #[macro_export]
 macro_rules! make_pipeline {
     (
@@ -27,7 +26,7 @@ macro_rules! make_pipeline {
                     format: $config.format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            src_factor: wgpu::BlendFactor::One,
                             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             operation: wgpu::BlendOperation::Add,
                         },

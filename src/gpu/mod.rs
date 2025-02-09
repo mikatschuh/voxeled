@@ -164,14 +164,16 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             }),
         ));
 
+        let (vertices, indices) = Vertex::get_scene();
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
+            contents: bytemuck::cast_slice(vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
+            contents: bytemuck::cast_slice(indices),
             usage: wgpu::BufferUsages::INDEX,
         });
 
@@ -218,7 +220,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             camera_buffer,
             vertex_buffer,
             index_buffer,
-            num_indices: INDICES.len() as u32,
+            num_indices: indices.len() as u32,
         }
     }
     /// Eine Methode welche die Fenstergröße anpasst.
@@ -286,7 +288,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
                                 r: 0.0,
                                 g: 0.0,
                                 b: 0.0,
-                                a: 0.0,
+                                a: 1.0,
                             }),
                             store: wgpu::StoreOp::Store,
                         },
