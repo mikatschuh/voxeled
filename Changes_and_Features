@@ -1,0 +1,44 @@
+Player Controller
+
+ hit cooldown
+    Nein, aber ein Limit von 20 Klicks pro Sekunde wenn man einen Spieler schlägt,
+    um gegen Autoklicker und Drag clicking zu wirken.
+
+ Block Placement
+    Wie auf der Bedrock Edition, mit gedrückt halten usw.
+    Das man Blöcke in der Luft platzieren kann macht allerdings
+    keinen Sinn, das nicht.
+
+ Block Orientation
+    Ist nicht mehr davon abhängig IN WELCHEM WINKEL zum Block
+    ein anderer Block platziert wurde sondern WO auf dem anderen Block
+
+
+Redstone System
+
+ Redstone soll viel schneller werden.
+
+ Performance
+    Muss verbessert werden um jeden Preis, man soll in der Lage sein Computer ingame zu bauen
+    die Doom flüssig laufen lässt.
+
+ Pistons
+    Wenn man drüber nachdenkt sind Pistons die einzige wirklich gute Idee in Voxel Spielen
+    um Blöcke zu haben die die Welt verändern können. Auch der Code dahinter ist schön simpel
+    und elegant, was die Mechanik sehr greifbar macht. Pistons müssen performant sein.
+    Das Push Limit muss entfernt werden. Das wird möglich gemacht indem Pushs lazy gespeichert werden.
+
+    Auswirkungen:
+
+     Ohne das Push Limit würden Flying machines viel größer.
+     Selbst bauende Brücken werden möglich.
+     Pistontüren werden auch größer.
+
+ TNT
+    Ja. Die Java Edition Wankyness, das TNT während es fliegt die Kollisionschecks
+    nicht richtig macht ist aber Quatsch und kommt raus. TNT sollte berechenbarer werden.
+    Zudem will ich die explosionsresistenten Blöcke entfernen, Die machen auch
+    keinen Sinn. Dafür werden Cobblestone generatoren stärker gemacht.
+    Das erlaubt es einem voll automatische Miner zu bauen - mehr Automatisierung, Yay!
+    Bedrock kommt raus da es unten sowie oben keine Grenze mehr gibt.
+    Obsidian, weiß noch nicht, erstmal nicht.

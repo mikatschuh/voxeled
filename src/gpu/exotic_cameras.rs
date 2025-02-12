@@ -22,7 +22,6 @@ impl Default for CinematicThirdPersonCamera {
     }
 }
 impl Camera3d for CinematicThirdPersonCamera {
-    const SENSITIVITY: f32 = 0.001;
     const ACC_CHANGE_SENSITIVITY: f32 = 0.0001;
 
     const NEAR_PLANE: f32 = 0.001;
@@ -30,14 +29,12 @@ impl Camera3d for CinematicThirdPersonCamera {
 
     const FOV: f32 = std::f32::consts::FRAC_PI_3;
 
-    fn new(pos: Vec3, yaw: f32, pitch: f32, gear: f32) -> Self {
+    fn new(pos: Vec3, dir: Vec3) -> Self {
+        let rot = Quat::from_rotation_arc(Vec3::Z, dir.normalize());
         Self {
             pos,
-            rot: Quat::IDENTITY
-                * Quat::from_axis_angle(Vec3::Y, yaw)
-                * Quat::from_axis_angle(Vec3::X, pitch)
-                * Quat::from_axis_angle(Vec3::Z, gear),
-            angle: Vec3::new(yaw, pitch, gear),
+            rot,
+            angle: Vec3::from(rot.to_euler(glam::EulerRot::YXZ)),
             rot_vel: Vec3::ZERO,
             ..Default::default()
         }

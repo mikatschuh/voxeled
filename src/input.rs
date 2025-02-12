@@ -25,9 +25,9 @@ impl From<InputState> for bool {
 }
 use std::ops::Sub;
 impl Sub for InputState {
-    type Output = i32;
+    type Output = f32;
     fn sub(self, other: Self) -> Self::Output {
-        self as i32 - other as i32
+        self as u32 as f32 - other as u32 as f32
     }
 }
 
@@ -35,6 +35,7 @@ pub struct State {
     pub state: InputState,
     pub since: Instant,
 }
+
 impl State {
     /// Methode die zurück gibt ob eine Taste in diesem Frame gedrückt wurde.
     /// Die Methode gibt nur wahr zurück wenn die Taste im vorherigen Frame nicht gedrückt wurde.
@@ -67,7 +68,7 @@ impl State {
     }
     /// Methode die überprüft ob sich die Zeit die eine Taste schon gedrückt wurde in einem gegebenen Bereich befindet.
     pub fn pressed_for(&self, time: Range<u128>) -> bool {
-        if let InputState::Pressed | InputState::JustPressed = self.state {
+        if <InputState as Into<bool>>::into(self.state) {
             let time_pressed = self.since.elapsed().as_nanos();
             time.start <= time_pressed && time_pressed <= time.end
         } else {
@@ -77,7 +78,7 @@ impl State {
     /// Methode die überprüft ob sich die Zeit die eine Taste schon nicht mehr gedrückt wurde
     /// in einem gegebenen Bereich befindet.
     pub fn released_for(&self, time: Range<u128>) -> bool {
-        if let InputState::NotPressed | InputState::JustReleased = self.state {
+        if !<InputState as Into<bool>>::into(self.state) {
             let time_released = self.since.elapsed().as_nanos();
             time.start <= time_released && time_released <= time.end
         } else {

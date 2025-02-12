@@ -1,4 +1,6 @@
 use gpu::camera::Camera3d;
+use server::chunk::generate_mesh;
+use threader::task::Task;
 use winit::{
     dpi::PhysicalSize,
     event::*,
@@ -9,10 +11,10 @@ use winit::{
 mod gpu;
 mod input;
 mod playground;
-mod time;
-// mod server;
+mod random;
+mod server;
 mod threader;
-use threader::task::Task;
+mod time;
 
 fn main() {
     pollster::block_on(run());
@@ -28,10 +30,18 @@ async fn run() {
         }) // this is the window configuration
         .build(&event_loop)
         .unwrap();
+    let mut camera = gpu::camera::Camera::new(
+        glam::Vec3::new(0.0, 40.0, 0.0),
+        glam::Vec3::new(1.0, 1.0, 0.0),
+    );
     let mut drawer = gpu::Drawer::connect_to(
         &window,
         wgpu::PresentMode::Fifo,
-        gpu::camera::Camera::new(glam::Vec3::ZERO, 0.0, 0.0, 0.0),
+        generate_mesh(
+            glam::IVec3::new(0, 0, 0),
+            server::chunk::Chunk::from_white_noise().create_faces(),
+        ),
+        &mut camera,
     )
     .await; // this connectes a drawer to the window
     let mut delta_time = time::DeltaTime::now();
@@ -69,6 +79,7 @@ async fn run() {
                             WindowEvent::CloseRequested => {
                                 // do saving and stuff
 
+                                threadpool.drop();
                                 control_flow.exit()
                             },
                             WindowEvent::Resized(physical_size) => {

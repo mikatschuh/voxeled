@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub enum Task {
     Benchmark { label: &'static str, time: Instant },
@@ -11,11 +11,18 @@ impl Task {
             time: Instant::now(),
         }
     }
-    pub fn execute(self) {
+    pub fn execute(self, i: usize) {
         match self {
             Self::Benchmark { label, time } => {
-                println!("{} finished at: {}", label, time.elapsed().as_nanos())
+                std::thread::sleep(Duration::from_millis(300));
+                println!("#{}: {} finished at: {:#?}", i, label, time.elapsed())
             }
         }
+    }
+    pub fn finish_protocol() -> Vec<Self> {
+        vec![Self::Benchmark {
+            label: "last",
+            time: Instant::now(),
+        }]
     }
 }

@@ -1,14 +1,15 @@
 pub mod camera;
-pub mod exotic_cameras;
+mod camera_controller;
+// pub mod exotic_cameras;
+pub mod mesh;
 mod pipeline;
 mod texture;
-pub mod vertex;
 pub mod window;
 
 use crate::make_pipeline;
 use camera::Camera3d;
+use mesh::*;
 use texture::Texture;
-use vertex::*;
 use wgpu::util::DeviceExt;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
@@ -30,7 +31,7 @@ pub struct Drawer<'a, C: Camera3d> {
 
     render_pipeline: wgpu::RenderPipeline,
 
-    camera: C,
+    camera: &'a mut C,
     camera_buffer: wgpu::Buffer,
 
     // Asset things:
@@ -45,7 +46,8 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-        camera: C,
+        mesh: Mesh,
+        camera: &'a mut C,
     ) -> Drawer<'a, C> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -164,16 +166,14 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             }),
         ));
 
-        let (vertices, indices) = Vertex::get_scene();
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(vertices),
+            contents: bytemuck::cast_slice(&mesh.vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(indices),
+            contents: bytemuck::cast_slice(&mesh.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
 
@@ -182,7 +182,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
                 let texture = Texture::from_image(
                     &device,
                     &queue,
-                    &image::load_from_memory(include_bytes!("happy-tree.png")).unwrap(),
+                    &image::load_from_memory(include_bytes!("stone.png")).unwrap(),
                     Some("Test Texture"),
                 );
 
@@ -220,7 +220,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             camera_buffer,
             vertex_buffer,
             index_buffer,
-            num_indices: indices.len() as u32,
+            num_indices: mesh.indices.len() as u32,
         }
     }
     /// Eine Methode welche die Fenstergröße anpasst.
@@ -239,20 +239,21 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
     }
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
-        self.camera.rotate_around_angle(glam::Vec3::new(
-            -keys.mouse_motion.x as f32,
-            -keys.mouse_motion.y as f32,
-            0.0,
-        ));
-
+        self.camera
+            .controller()
+            .rotate_around_angle(glam::Vec3::new(
+                -keys.mouse_motion.x as f32,
+                -keys.mouse_motion.y as f32,
+                (keys.e.state - keys.q.state) * 3.0,
+            ));
         if keys.mouse_wheel.y != 0.0 {
-            self.camera.update_acc(keys.mouse_wheel.y)
+            self.camera.controller().update_acc(keys.mouse_wheel.y)
         }
-        self.camera.update(
+        self.camera.controller().update(
             glam::Vec3::new(
-                keys.d.pressed() as u32 as f32 - keys.a.pressed() as u32 as f32,
-                keys.space.pressed() as u32 as f32 - keys.shift.pressed() as u32 as f32,
-                keys.s.pressed() as u32 as f32 - keys.w.pressed() as u32 as f32,
+                keys.a.state - keys.d.state,
+                keys.shift.state - keys.space.state,
+                keys.w.state - keys.s.state,
             )
             .normalize_or_zero(),
             delta_time,
