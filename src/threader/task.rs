@@ -14,7 +14,7 @@ impl Task {
     pub fn execute(self, i: usize) {
         match self {
             Self::Benchmark { label, time } => {
-                std::thread::sleep(Duration::from_millis(300));
+                // std::thread::sleep(Duration::from_millis(300));
                 println!("#{}: {} finished at: {:#?}", i, label, time.elapsed())
             }
         }

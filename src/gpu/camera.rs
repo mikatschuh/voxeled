@@ -1,11 +1,11 @@
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Vec3};
 
-use super::camera_controller::SmoothController;
+use super::camera_controller::CameraController;
 
 // pub use super::exotic_cameras::CinematicThirdPersonCamera;
 
 /// Speichert die Eigenschaften einer 3d Kamera.
-pub trait Camera3d: Default {
+pub trait Camera3d<C: CameraController>: Default {
     const NEAR_PLANE: f32;
     const FAR_PLANE: f32;
 
@@ -13,23 +13,21 @@ pub trait Camera3d: Default {
 
     fn new(pos: Vec3, dir: Vec3) -> Self;
 
-    fn controller(&mut self) -> &mut SmoothController;
+    fn controller(&mut self) -> &mut C;
 
     fn view_proj(&self, aspect_ratio: f32) -> [[f32; 4]; 4];
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Camera {
-    con: SmoothController,
+pub struct Camera<C> {
+    con: C,
 }
-impl Default for Camera {
+impl<C: Default> Default for Camera<C> {
     fn default() -> Self {
-        Self {
-            con: SmoothController::default(),
-        }
+        Self { con: C::default() }
     }
 }
-impl Camera3d for Camera {
+impl<C: CameraController> Camera3d<C> for Camera<C> {
     const NEAR_PLANE: f32 = 0.001;
     const FAR_PLANE: f32 = 1000.0;
 
@@ -37,10 +35,11 @@ impl Camera3d for Camera {
 
     fn new(pos: Vec3, dir: Vec3) -> Self {
         Self {
-            con: SmoothController::new(pos, dir),
+            con: C::new(pos, dir),
         }
     }
-    fn controller(&mut self) -> &mut SmoothController {
+
+    fn controller(&mut self) -> &mut C {
         &mut self.con
     }
     /// Diese Funktion gibt eine 4*4 Matrix zurück um die Punkte auf den Bildschirm zu projezieren.

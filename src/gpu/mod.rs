@@ -1,5 +1,5 @@
 pub mod camera;
-mod camera_controller;
+pub mod camera_controller;
 // pub mod exotic_cameras;
 pub mod mesh;
 mod pipeline;
@@ -8,12 +8,17 @@ pub mod window;
 
 use crate::make_pipeline;
 use camera::Camera3d;
+use camera_controller::CameraController;
 use mesh::*;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
-pub struct Drawer<'a, C: Camera3d> {
+pub struct Drawer<'a, CC: CameraController, C>
+where
+    C: Camera3d<CC>,
+{
+    _phantom: std::marker::PhantomData<CC>,
     // bind groups:
     diffuse_bind_group: wgpu::BindGroup,
     camera_bind_group: wgpu::BindGroup,
@@ -40,7 +45,7 @@ pub struct Drawer<'a, C: Camera3d> {
     num_indices: u32,
 }
 
-impl<'a, C: Camera3d> Drawer<'a, C> {
+impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
     /// Diese Funktion erstellt einen Drawer der mit dem aktuellen Fenster verbunden ist.
     /// Außerdem nimmt sie einen PresentMode entgegen mit dem auf das Fenster gezeichnet werden soll.
     pub async fn connect_to(
@@ -48,7 +53,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
         present_mode: wgpu::PresentMode,
         mesh: Mesh,
         camera: &'a mut C,
-    ) -> Drawer<'a, C> {
+    ) -> Drawer<'a, CC, C> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -178,6 +183,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
         });
 
         Self {
+            _phantom: std::marker::PhantomData,
             diffuse_bind_group: {
                 let texture = Texture::from_image(
                     &device,
@@ -264,6 +270,23 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio())),
         );
     }
+    pub fn update_mesh(&mut self, mesh: &Mesh) {
+        self.num_indices = mesh.indices.len() as u32;
+        self.vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&mesh.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.index_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&mesh.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+    }
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     pub fn draw(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
@@ -312,7 +335,7 @@ impl<'a, C: Camera3d> Drawer<'a, C> {
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 

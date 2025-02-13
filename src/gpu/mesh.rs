@@ -3,7 +3,7 @@ use glam::{Quat, Vec3};
 #[derive(Debug)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
-    pub indices: Vec<u16>,
+    pub indices: Vec<u32>,
 }
 use std::ops;
 impl ops::AddAssign for Mesh {
@@ -11,7 +11,7 @@ impl ops::AddAssign for Mesh {
         other
             .indices
             .iter_mut()
-            .for_each(|index| *index += self.vertices.len() as u16);
+            .for_each(|index| *index += self.vertices.len() as u32);
         self.indices.append(&mut other.indices);
         self.vertices.append(&mut other.vertices)
     }

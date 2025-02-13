@@ -1,4 +1,7 @@
-use gpu::camera::Camera3d;
+use gpu::{
+    camera::{Camera, Camera3d},
+    camera_controller::SmoothController,
+};
 use server::chunk::generate_mesh;
 use threader::task::Task;
 use winit::{
@@ -7,7 +10,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-
 mod gpu;
 mod input;
 mod playground;
@@ -30,7 +32,7 @@ async fn run() {
         }) // this is the window configuration
         .build(&event_loop)
         .unwrap();
-    let mut camera = gpu::camera::Camera::new(
+    let mut camera: Camera<SmoothController> = gpu::camera::Camera::new(
         glam::Vec3::new(0.0, 40.0, 0.0),
         glam::Vec3::new(1.0, 1.0, 0.0),
     );
@@ -47,6 +49,13 @@ async fn run() {
     let mut delta_time = time::DeltaTime::now();
     let mut keys = input::Keys::new();
 
+    let mut elapsed_time = 0.0;
+    let noise = server::voxel::AnimatedNoise::new(
+        42,   // Seed für Reproduzierbarkeit
+        10.0, // time_scale - kleinere Werte = langsamere Animation
+        0.05, // space_scale - kleinere Werte = größere Strukturen
+    );
+
     let mut threadpool = threader::Threadpool::new(None);
     event_loop // main event loop
         .run(move |event, control_flow| {
@@ -55,9 +64,8 @@ async fn run() {
                     Event::NewEvents(StartCause::Init) => {
                         // Initial frame time
                         delta_time = time::DeltaTime::now();
-
                         for num in 0..10 {
-                            threadpool.priority_queue.push(Task::new_benchmark(format!("priority {}", num).leak()))
+                            threadpool.add_priority(Task::new_benchmark(format!("priority {}", num).leak()))
                         }
                         for num in 0..10 {
                             threadpool.add_to_first(Task::new_benchmark(format!("first {}", num).leak()))
@@ -91,7 +99,15 @@ async fn run() {
 
                                 if keys.esc.just_pressed() { drawer.window.flip_focus() }
 
-                                if drawer.window.focused() { drawer.update(&keys, delta_time.update() as f32) }
+                                let delta_time = delta_time.update();
+                                elapsed_time += delta_time as f64 / 3_000_000_000.0;
+                                drawer.update_mesh(&generate_mesh(
+                                    glam::IVec3::new(0, 0, 0),
+                                    server::chunk::Chunk::from_perlin_noise(&noise, elapsed_time).create_faces(),
+                                ));
+
+
+                                if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }
 
                                 match drawer.draw() {
                                     Ok(_) => {}

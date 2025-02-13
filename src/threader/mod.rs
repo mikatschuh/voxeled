@@ -16,24 +16,18 @@ No Priority Tasks:
 */
 
 use crossbeam::atomic::AtomicCell;
+use crossbeam::channel::{bounded, Sender};
 use crossbeam::deque::Injector;
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+
+use std::{sync::Arc, thread};
 pub mod task;
 use task::Task;
 
-pub struct Worker {
-    handle: thread::JoinHandle<()>,
-    terminate: Arc<AtomicCell<bool>>,
-}
-
 pub struct Threadpool {
-    workers: Vec<Worker>,
+    workers: Vec<thread::JoinHandle<()>>,
     pub priority_queue: Arc<Injector<Task>>,
     normal_queues: [Arc<Injector<Task>>; 2],
+    waker: Sender<bool>,
 }
 impl Threadpool {
     pub fn new(num_threads: Option<usize>) -> Self {
@@ -46,87 +40,84 @@ impl Threadpool {
             Arc::new(Injector::<Task>::new()),
         ];
 
-        let normal_task_counter = Arc::new(Mutex::new(0));
         let mut workers = Vec::with_capacity(num_threads);
+        let (waker, wake_call) = bounded::<bool>(1);
 
         for i in 0..num_threads {
             let priority_queue = priority_queue.clone();
             let normal_queues = normal_queues.clone();
-            let normal_task_counter = normal_task_counter.clone();
 
-            let terminate = Arc::new(AtomicCell::new(false));
-            let thread_terminate = terminate.clone();
+            let wake_call = wake_call.clone();
 
-            workers.push(Worker {
-                handle: thread::spawn(move || {
-                    loop {
-                        // Always handle ALL priority tasks first
-                        while let Some(task) = priority_queue.steal().success() {
-                            println!("#{}: executes a priority task", i);
-                            task.execute(i);
-                        }
+            workers.push(thread::spawn(move || {
+                let mut poll = 0_usize;
+                loop {
+                    // Always handle ALL priority tasks first
+                    while let Some(task) = priority_queue.steal().success() {
+                        task.execute(i);
+                    }
 
-                        let mut counter = normal_task_counter.lock().unwrap();
-
-                        // Only handle normal/second queue tasks when no priority tasks exist
-                        if *counter < 3 {
-                            if let Some(task) = normal_queues[0].steal().success().or_else(|| {
-                                *counter = 0;
-                                normal_queues[1].steal().success()
-                            }) {
-                                println!("#{}: executes a first task", i);
-                                task.execute(i);
-                                *counter += 1;
-                                continue;
+                    // Only handle normal/second queue tasks when no priority tasks exist
+                    let mut counter = 0;
+                    while let Some(task) = if counter < 3 {
+                        normal_queues[0].steal().success().or_else(|| {
+                            counter = 0;
+                            normal_queues[1].steal().success()
+                        })
+                    } else if let Some(task) = normal_queues[1].steal().success() {
+                        counter = 0;
+                        Some(task)
+                    } else {
+                        normal_queues[0].steal().success()
+                    } {
+                        task.execute(i);
+                        counter += 1;
+                    }
+                    if poll < 2 {
+                        poll += 1;
+                    } else {
+                        poll = 0;
+                        println!("#{}: no tasks anymore", i);
+                        match wake_call.recv() {
+                            Ok(false) => {
+                                println!("#{}: terminated", i);
+                                break;
                             }
-                        }
-                        if let Some(task) = if let Some(task) = normal_queues[1].steal().success() {
-                            *counter = 0;
-                            Some(task)
-                        } else {
-                            normal_queues[0].steal().success()
-                        } {
-                            println!("#{}: executes a second task", i);
-                            task.execute(i);
-                            *counter += 1;
-                            continue;
-                        }
-                        if thread_terminate.load() {
-                            println!("#{}: terminated", i);
-                            break;
-                        } else {
-                            println!("#{}: sleeps", i);
-                            thread::sleep(Duration::from_micros(500));
+                            Err(e) => println!("got disconnected, error: {}", e),
+                            _ => println!("#{}: woke up!", i),
                         }
                     }
-                }),
-                terminate,
-            });
+                }
+            }));
         }
 
         Threadpool {
             workers,
             priority_queue,
             normal_queues,
+            waker,
         }
     }
     pub fn add_to_first(&mut self, task: Task) {
         self.normal_queues[0].push(task);
+        let _ = self.waker.send(true);
     }
     pub fn add_to_second(&mut self, task: Task) {
         self.normal_queues[1].push(task);
+        let _ = self.waker.send(true);
+    }
+    pub fn add_priority(&mut self, task: Task) {
+        self.priority_queue.push(task);
+        let _ = self.waker.send(true);
     }
     pub fn drop(&mut self) {
-        for worker in self.workers.iter() {
-            worker.terminate.store(true);
+        for _ in 0..self.workers.len() {
+            let _ = self.waker.send(false);
         }
         while let Some(worker) = self.workers.pop() {
-            if let Err(e) = worker.handle.join() {
+            if let Err(e) = worker.join() {
                 println!("thread {} panicked, message: {:?}", self.workers.len(), e)
             };
         }
-    }
-    pub fn size(&self) -> usize {
-        self.workers.len()
     }
 }

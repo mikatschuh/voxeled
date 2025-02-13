@@ -1,5 +1,5 @@
-use super::voxel::VoxelType;
-use glam::{IVec3, UVec3, Vec3};
+use super::voxel::{AnimatedNoise, VoxelType};
+use glam::IVec3;
 
 pub struct Chunks {
     chunks: Vec<Chunk>,
@@ -52,9 +52,30 @@ impl Chunk {
             entities: Vec::new(),
         }
     }
+    pub fn from_perlin_noise(noise: &AnimatedNoise, time: f64) -> Self {
+        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
+        for (x, plane) in voxels.iter_mut().enumerate() {
+            for (y, row) in plane.iter_mut().enumerate() {
+                for (z, voxel) in row.iter_mut().enumerate() {
+                    let val = noise.get(x as f64 * 2.0, y as f64 * 2.0, z as f64 * 2.0, time);
+                    *voxel = if val > 0.1 {
+                        VoxelType::Solid
+                    } else {
+                        VoxelType::Air
+                    }
+                }
+            }
+        }
+
+        Self {
+            pos: IVec3::ZERO,
+            voxels,
+            entities: Vec::new(),
+        }
+    }
     pub fn with_ground_layer() -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        voxels[0][0][0] = VoxelType::TestTreePicture;
+        voxels[0][0][0] = VoxelType::Solid;
         Self {
             pos: IVec3::ZERO,
             voxels,
@@ -105,8 +126,9 @@ impl Chunk {
                     z_aligned[i][j] & !((z_aligned[i][j] << 1)/* | (neighbor_row >> 31) */);
             }
         }
-        println!(
-            "\
+        let _ = || {
+            println!(
+                "\
             x:  {}\n\
             -x: {}\n\
             +x: {}\n\n\
@@ -117,16 +139,17 @@ impl Chunk {
             -z: {}\n\
             +z: {}\n\
             ",
-            format(x_aligned[0][0]),
-            format(faces[0].0[0][0]),
-            format(faces[1].0[0][0]),
-            format(y_aligned[0][0]),
-            format(faces[2].0[0][0]),
-            format(faces[3].0[0][0]),
-            format(z_aligned[0][0]),
-            format(faces[4].0[0][0]),
-            format(faces[5].0[0][0])
-        );
+                format(x_aligned[0][0]),
+                format(faces[0].0[0][0]),
+                format(faces[1].0[0][0]),
+                format(y_aligned[0][0]),
+                format(faces[2].0[0][0]),
+                format(faces[3].0[0][0]),
+                format(z_aligned[0][0]),
+                format(faces[4].0[0][0]),
+                format(faces[5].0[0][0])
+            );
+        };
         fn format(num: u32) -> String {
             let mut out = String::new();
             for i in (0..32).rev() {
@@ -176,8 +199,6 @@ pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
             }
         }
     }
-    println!("{:?}", mesh);
-
     mesh
 }
 /* Cullign Algorithms
