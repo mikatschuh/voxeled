@@ -57,8 +57,8 @@ impl Chunk {
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
-                    let val = noise.get(x as f64 * 2.0, y as f64 * 2.0, z as f64 * 2.0, time);
-                    *voxel = if val > 0.1 {
+                    let val = noise.get_octaves(x as f64, y as f64, z as f64, time, 2);
+                    *voxel = if val > 0.9 {
                         VoxelType::Solid
                     } else {
                         VoxelType::Air

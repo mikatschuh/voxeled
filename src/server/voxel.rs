@@ -27,7 +27,7 @@ impl VoxelType {
         }
     }
 }
-use noise::{NoiseFn, Perlin, Seedable};
+use noise::{NoiseFn, Perlin};
 
 pub struct AnimatedNoise {
     noise: Perlin,
@@ -45,20 +45,37 @@ impl AnimatedNoise {
     }
 
     pub fn get(&self, x: f64, y: f64, z: f64, time: f64) -> f64 {
-        // Verwende die Zeit als vierte Dimension für smooth Animation
         let animated_x = x * self.space_scale;
         let animated_y = y * self.space_scale;
         let animated_z = z * self.space_scale;
         let t = time * self.time_scale;
 
-        // 4D Noise durch Interpolation von zwei 3D Noise Werten
-        let noise1 = self.noise.get([animated_x, animated_y, animated_z]);
-        let noise2 = self
-            .noise
-            .get([animated_x + 123.0, animated_y + 456.0, animated_z + 789.0]);
+        // Variante 1: Zeit direkt als vierte Dimension nutzen
+        // let value = self.noise.get([
+        //     animated_x, animated_y, animated_z, t, // Zeit als zusätzliche Dimension
+        // ]);
 
-        // Smooth Interpolation zwischen den Noise Werten basierend auf der Zeit
-        let blend = (t.sin() + 1.0) * 0.5;
-        noise1 * (1.0 - blend) + noise2 * blend
+        // Oder Variante 2: Bewegte Koordinaten
+        let value = self.noise.get([
+            animated_x + t,       // Koordinaten bewegen sich mit der Zeit
+            animated_y + t * 0.7, // verschiedene Faktoren für mehr Variation
+            animated_z + t * 0.3,
+        ]);
+
+        (value + 1.0) * 0.5
+    }
+    pub fn get_octaves(&self, x: f64, y: f64, z: f64, time: f64, octaves: u32) -> f64 {
+        let mut value = 0.0;
+        let mut amplitude = 1.0;
+        let mut frequency = 1.0;
+        let persistence = 0.5;
+
+        for _ in 0..octaves {
+            value += self.get(x * frequency, y * frequency, z, time) * amplitude;
+            amplitude *= persistence;
+            frequency *= 2.0;
+        }
+
+        value
     }
 }

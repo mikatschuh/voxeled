@@ -51,9 +51,9 @@ async fn run() {
 
     let mut elapsed_time = 0.0;
     let noise = server::voxel::AnimatedNoise::new(
-        42,   // Seed für Reproduzierbarkeit
-        10.0, // time_scale - kleinere Werte = langsamere Animation
-        0.05, // space_scale - kleinere Werte = größere Strukturen
+        42,  // Seed für Reproduzierbarkeit
+        1.0, // time_scale - kleinere Werte = langsamere Animation
+        0.1, // space_scale - kleinere Werte = größere Strukturen
     );
 
     let mut threadpool = threader::Threadpool::new(None);
@@ -80,7 +80,9 @@ async fn run() {
                         match event {
                             WindowEvent::Occluded(occluded) => if occluded {
                                 control_flow.set_control_flow(ControlFlow::Wait);
+
                             } else {
+                                control_flow.set_control_flow(ControlFlow::Poll);
                                 drawer.reconfigure()
                             }
 
@@ -100,12 +102,11 @@ async fn run() {
                                 if keys.esc.just_pressed() { drawer.window.flip_focus() }
 
                                 let delta_time = delta_time.update();
-                                elapsed_time += delta_time as f64 / 3_000_000_000.0;
+                                elapsed_time += delta_time as f64 / 1_000_000_000.0;
                                 drawer.update_mesh(&generate_mesh(
                                     glam::IVec3::new(0, 0, 0),
                                     server::chunk::Chunk::from_perlin_noise(&noise, elapsed_time).create_faces(),
                                 ));
-
 
                                 if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }
 
