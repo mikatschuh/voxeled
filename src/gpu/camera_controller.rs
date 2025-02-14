@@ -2,6 +2,7 @@ use glam::{Quat, Vec3};
 
 pub trait CameraController: Default {
     const SENSITIVITY: f32;
+    const ROLL_SENSITIVITY: f32;
 
     const ACC_CHANGE_SENSITIVITY: f32;
     fn new(pos: Vec3, dir: Vec3) -> Self;
@@ -40,8 +41,13 @@ impl SmoothController {
 impl CameraController for SmoothController {
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
     const SENSITIVITY: f32 = 0.001;
+    const ROLL_SENSITIVITY: f32 = 5.0;
     fn new(pos: Vec3, dir: Vec3) -> Self {
-        let rot = Quat::from_rotation_arc(Vec3::Z, dir.normalize());
+        let rot = Quat::IDENTITY
+            * Quat::from_axis_angle(Vec3::Y, dir.x)
+            * Quat::from_axis_angle(Vec3::X, dir.y)
+            * Quat::from_axis_angle(Vec3::Z, dir.z);
+
         Self {
             pos,
             rot,
@@ -51,7 +57,8 @@ impl CameraController for SmoothController {
     }
 
     /// Dreht die Kamera um einen Winkel multipliziert mit der Kamera Sensitivität.
-    fn rotate_around_angle(&mut self, angle: Vec3) {
+    fn rotate_around_angle(&mut self, mut angle: Vec3) {
+        angle.z *= Self::ROLL_SENSITIVITY;
         self.angle += angle * Self::SENSITIVITY;
 
         self.rot = Quat::IDENTITY

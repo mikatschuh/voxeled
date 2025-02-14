@@ -1,19 +1,6 @@
 use super::voxel::{AnimatedNoise, VoxelType};
 use glam::IVec3;
 
-pub struct Chunks {
-    chunks: Vec<Chunk>,
-}
-
-pub struct ChunkHandle {
-    chunk: *mut Chunk,
-}
-
-impl Chunks {
-    pub fn get_handle() -> ChunkHandle {
-        todo!()
-    }
-}
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
     pub pos: IVec3,
@@ -65,6 +52,18 @@ impl Chunk {
                     }
                 }
             }
+        }
+
+        Self {
+            pos: IVec3::ZERO,
+            voxels,
+            entities: Vec::new(),
+        }
+    }
+    pub fn from_pyramide() -> Self {
+        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
+        for point in generate_pyramid_points(20, 10) {
+            voxels[point.x as usize][point.y as usize][point.z as usize] = VoxelType::Solid;
         }
 
         Self {
@@ -168,6 +167,7 @@ impl Chunk {
 
 use crate::gpu::mesh::Mesh;
 pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
+    let chunk_pos = chunk_pos << 5;
     let mut mesh = Mesh {
         vertices: Vec::new(), // the points
         indices: Vec::new(),  // which points form a triangle
@@ -175,7 +175,8 @@ pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
     for x in 0..32 {
         for y in 0..32 {
             for z in 0..32 {
-                let position = (chunk_pos + IVec3::new(x as i32, y as i32, z as i32)).as_vec3();
+                let position: IVec3 = chunk_pos + IVec3::new(x as i32, y as i32, z as i32);
+                let position = position.as_vec3();
 
                 let masks_bit = 1_u32 << 31;
                 if faces[0].0[y][z] & (masks_bit >> x) > 0 {
@@ -200,6 +201,32 @@ pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
         }
     }
     mesh
+}
+/// Generiert alle Punkte innerhalb einer Pyramide, startend von (0,0,0)
+///
+/// # Arguments
+/// * `height` - Die Höhe der Pyramide
+/// * `base_size` - Die Größe der Grundfläche (Quadrat)
+///
+/// # Returns
+/// * `Vec<IVec3>` - Liste aller Punkte innerhalb der Pyramide
+pub fn generate_pyramid_points(height: i32, base_size: i32) -> Vec<IVec3> {
+    let mut points = Vec::new();
+
+    // Für jede Höhe y
+    for y in 0..=height {
+        // Berechne die aktuelle Ebenen-Größe basierend auf der Höhe
+        let current_size = ((height - y) as f32 / height as f32 * base_size as f32).floor() as i32;
+
+        // Für jeden Punkt in der aktuellen Ebene
+        for x in 0..=current_size {
+            for z in 0..=current_size {
+                points.push(IVec3::new(x, y, z));
+            }
+        }
+    }
+
+    points
 }
 /* Cullign Algorithms
 

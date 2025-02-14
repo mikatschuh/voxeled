@@ -8,7 +8,7 @@ use winit::{
     dpi::PhysicalSize,
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 mod gpu;
 mod input;
@@ -103,9 +103,10 @@ async fn run() {
 
                                 let delta_time = delta_time.update();
                                 elapsed_time += delta_time as f64 / 1_000_000_000.0;
+                                // drawer.update_mesh(&generate_mesh(    glam::IVec3::new(0, 0, 0),server::chunk::Chunk::from_perlin_noise(&noise, elapsed_time).create_faces(),));
                                 drawer.update_mesh(&generate_mesh(
                                     glam::IVec3::new(0, 0, 0),
-                                    server::chunk::Chunk::from_perlin_noise(&noise, elapsed_time).create_faces(),
+                                    server::chunk::Chunk::from_pyramide().create_faces(),
                                 ));
 
                                 if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }

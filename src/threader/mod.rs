@@ -14,8 +14,6 @@ No Priority Tasks:
 
     Werden ausgeführt sofern Zeit zu Verfügung steht.
 */
-
-use crossbeam::atomic::AtomicCell;
 use crossbeam::channel::{bounded, Sender};
 use crossbeam::deque::Injector;
 
@@ -83,7 +81,10 @@ impl Threadpool {
                                 println!("#{}: terminated", i);
                                 break;
                             }
-                            Err(e) => println!("got disconnected, error: {}", e),
+                            Err(e) => {
+                                println!("got disconnected, error: {}", e);
+                                break;
+                            }
                             _ => println!("#{}: woke up!", i),
                         }
                     }
