@@ -81,10 +81,7 @@ impl Threadpool {
                                 println!("#{}: terminated", i);
                                 break;
                             }
-                            Err(e) => {
-                                println!("got disconnected, error: {}", e);
-                                break;
-                            }
+                            Err(_) => break,
                             _ => println!("#{}: woke up!", i),
                         }
                     }

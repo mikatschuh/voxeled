@@ -8,7 +8,8 @@ pub struct Window<'a> {
     pub(super) window: &'a window::Window,
     focused: bool,
     size: PhysicalSize<u32>,
-    aspect_ratio: f32,
+    /// Breite / Höhe
+    pub aspect_ratio: f32,
 }
 impl<'a> Window<'a> {
     /// Erzeugt eine Window - Instanz wobei der GrabMode an focused anpasst
@@ -74,10 +75,6 @@ impl<'a> Window<'a> {
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.aspect_ratio = new_size.width as f32 / new_size.height as f32;
         self.size = new_size;
-    }
-    /// Gibt des Fensters Seitenverhältnis (Breite / Höhe) zurück.
-    pub fn aspect_ratio(&self) -> f32 {
-        self.aspect_ratio
     }
     /// Wrapper für winit::window::Window::id().
     pub fn id(&self) -> WindowId {

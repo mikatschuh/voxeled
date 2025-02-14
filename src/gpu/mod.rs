@@ -51,7 +51,6 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-        mesh: Mesh,
         camera: &'a mut C,
     ) -> Drawer<'a, CC, C> {
         // The instance is a handle to our GPU
@@ -170,6 +169,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 push_constant_ranges: &[],
             }),
         ));
+        let mesh = Mesh::default();
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -250,7 +250,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             .rotate_around_angle(glam::Vec3::new(
                 -keys.mouse_motion.x as f32,
                 -keys.mouse_motion.y as f32,
-                (keys.e.state - keys.q.state),
+                keys.e.state - keys.q.state,
             ));
         if keys.mouse_wheel.y != 0.0 {
             self.camera.controller().update_acc(keys.mouse_wheel.y)
@@ -267,8 +267,11 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio())),
+            bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
         );
+    }
+    pub fn camera(&mut self) -> &mut C {
+        self.camera
     }
     pub fn update_mesh(&mut self, mesh: &Mesh) {
         self.num_indices = mesh.indices.len() as u32;

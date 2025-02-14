@@ -31,7 +31,7 @@ impl<C: CameraController> Camera3d<C> for Camera<C> {
     const NEAR_PLANE: f32 = 0.001;
     const FAR_PLANE: f32 = 1000.0;
 
-    const FOV: f32 = std::f32::consts::FRAC_PI_3;
+    const FOV: f32 = std::f32::consts::FRAC_PI_2;
 
     fn new(pos: Vec3, dir: Vec3) -> Self {
         Self {

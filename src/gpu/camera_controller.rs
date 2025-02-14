@@ -15,6 +15,7 @@ pub trait CameraController: Default {
 
     fn pos(&self) -> Vec3;
     fn rot(&self) -> Quat;
+    fn dir(&self) -> Vec3;
 }
 #[derive(Clone, Copy, Debug)]
 pub struct SmoothController {
@@ -89,5 +90,8 @@ impl CameraController for SmoothController {
     }
     fn rot(&self) -> Quat {
         self.rot
+    }
+    fn dir(&self) -> Vec3 {
+        self.rot * Vec3::Z
     }
 }

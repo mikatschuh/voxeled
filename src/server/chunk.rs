@@ -1,5 +1,5 @@
 use super::voxel::{AnimatedNoise, VoxelType};
-use glam::IVec3;
+use glam::{IVec3, Vec3};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
@@ -23,7 +23,7 @@ impl Chunk {
     const NUM_OF_SOLID_BLOCKS: usize = 5;
     const NUM_OF_NON_SOLID_BLOCKS: usize = 5;
 
-    pub fn from_white_noise() -> Self {
+    pub fn from_white_noise(pos: IVec3) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for plane in voxels.iter_mut() {
             for row in plane.iter_mut() {
@@ -34,12 +34,12 @@ impl Chunk {
         }
 
         Self {
-            pos: IVec3::ZERO,
+            pos,
             voxels,
             entities: Vec::new(),
         }
     }
-    pub fn from_perlin_noise(noise: &AnimatedNoise, time: f64) -> Self {
+    pub fn from_perlin_noise(pos: IVec3, noise: &AnimatedNoise, time: f64) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
@@ -55,28 +55,17 @@ impl Chunk {
         }
 
         Self {
-            pos: IVec3::ZERO,
+            pos,
             voxels,
             entities: Vec::new(),
         }
     }
-    pub fn from_pyramide() -> Self {
-        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        for point in generate_pyramid_points(20, 10) {
-            voxels[point.x as usize][point.y as usize][point.z as usize] = VoxelType::Solid;
-        }
 
-        Self {
-            pos: IVec3::ZERO,
-            voxels,
-            entities: Vec::new(),
-        }
-    }
-    pub fn with_ground_layer() -> Self {
+    pub fn with_ground_layer(pos: IVec3) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         voxels[0][0][0] = VoxelType::Solid;
         Self {
-            pos: IVec3::ZERO,
+            pos,
             voxels,
             entities: Vec::new(),
         }
@@ -166,7 +155,7 @@ impl Chunk {
 }
 
 use crate::gpu::mesh::Mesh;
-pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
+pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
     let chunk_pos = chunk_pos << 5;
     let mut mesh = Mesh {
         vertices: Vec::new(), // the points
@@ -178,23 +167,23 @@ pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
                 let position: IVec3 = chunk_pos + IVec3::new(x as i32, y as i32, z as i32);
                 let position = position.as_vec3();
 
-                let masks_bit = 1_u32 << 31;
-                if faces[0].0[y][z] & (masks_bit >> x) > 0 {
+                const MASK_BIT: u32 = 1_u32 << 31;
+                if faces[0].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x < position.x {
                     mesh += Mesh::face_nx(position)
                 }
-                if faces[1].0[y][z] & (masks_bit >> x) > 0 {
+                if faces[1].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x > position.x + 1.0 {
                     mesh += Mesh::face_px(position)
                 }
-                if faces[2].0[z][x] & (masks_bit >> y) > 0 {
+                if faces[2].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y < position.y {
                     mesh += Mesh::face_ny(position)
                 }
-                if faces[3].0[z][x] & (masks_bit >> y) > 0 {
+                if faces[3].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y > position.y + 1.0 {
                     mesh += Mesh::face_py(position)
                 }
-                if faces[4].0[x][y] & (masks_bit >> z) > 0 {
+                if faces[4].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z < position.z {
                     mesh += Mesh::face_nz(position)
                 }
-                if faces[5].0[x][y] & (masks_bit >> z) > 0 {
+                if faces[5].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z > position.z + 1.0 {
                     mesh += Mesh::face_pz(position)
                 }
             }
@@ -202,32 +191,7 @@ pub fn generate_mesh(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
     }
     mesh
 }
-/// Generiert alle Punkte innerhalb einer Pyramide, startend von (0,0,0)
-///
-/// # Arguments
-/// * `height` - Die Höhe der Pyramide
-/// * `base_size` - Die Größe der Grundfläche (Quadrat)
-///
-/// # Returns
-/// * `Vec<IVec3>` - Liste aller Punkte innerhalb der Pyramide
-pub fn generate_pyramid_points(height: i32, base_size: i32) -> Vec<IVec3> {
-    let mut points = Vec::new();
 
-    // Für jede Höhe y
-    for y in 0..=height {
-        // Berechne die aktuelle Ebenen-Größe basierend auf der Höhe
-        let current_size = ((height - y) as f32 / height as f32 * base_size as f32).floor() as i32;
-
-        // Für jeden Punkt in der aktuellen Ebene
-        for x in 0..=current_size {
-            for z in 0..=current_size {
-                points.push(IVec3::new(x, y, z));
-            }
-        }
-    }
-
-    points
-}
 /* Cullign Algorithms
 
 integer:

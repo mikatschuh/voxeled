@@ -1,14 +1,17 @@
+use std::time::Instant;
+
+use glam::Vec3;
 use gpu::{
     camera::{Camera, Camera3d},
-    camera_controller::SmoothController,
+    camera_controller::{CameraController, SmoothController},
 };
-use server::chunk::generate_mesh;
+use server::chunk_sys::Chunks;
 use threader::task::Task;
 use winit::{
     dpi::PhysicalSize,
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
 mod gpu;
 mod input;
@@ -32,29 +35,33 @@ async fn run() {
         }) // this is the window configuration
         .build(&event_loop)
         .unwrap();
-    let mut camera: Camera<SmoothController> = gpu::camera::Camera::new(
-        glam::Vec3::new(0.0, 40.0, 0.0),
-        glam::Vec3::new(1.0, 1.0, 0.0),
-    );
-    let mut drawer = gpu::Drawer::connect_to(
-        &window,
-        wgpu::PresentMode::Fifo,
-        generate_mesh(
-            glam::IVec3::new(0, 0, 0),
-            server::chunk::Chunk::from_white_noise().create_faces(),
-        ),
-        &mut camera,
-    )
-    .await; // this connectes a drawer to the window
+    let mut camera: Camera<SmoothController> =
+        gpu::camera::Camera::new(Vec3::new(0.0, 40.0, 0.0), Vec3::new(1.0, 1.0, 0.0));
+    let mut drawer = gpu::Drawer::connect_to(&window, wgpu::PresentMode::Fifo, &mut camera).await; // this connectes a drawer to the window
     let mut delta_time = time::DeltaTime::now();
     let mut keys = input::Keys::new();
 
     let mut elapsed_time = 0.0;
     let noise = server::voxel::AnimatedNoise::new(
         42,  // Seed für Reproduzierbarkeit
-        1.0, // time_scale - kleinere Werte = langsamere Animation
+        0.1, // time_scale - kleinere Werte = langsamere Animation
         0.1, // space_scale - kleinere Werte = größere Strukturen
     );
+    let mut world = Chunks::default();
+
+    let cam_pos = drawer.camera().controller().pos();
+    let cam_dir = drawer.camera().controller().dir();
+    // let now = Instant::now();
+    drawer.update_mesh(&world.create_mesh(
+        cam_pos,
+        cam_dir,
+        Camera::<SmoothController>::FOV,
+        drawer.window.aspect_ratio,
+        1.0,
+        &noise,
+        elapsed_time,
+    ));
+    //  println!("time it took (hole): {:#?}", now.elapsed());
 
     let mut threadpool = threader::Threadpool::new(None);
     event_loop // main event loop
@@ -80,7 +87,6 @@ async fn run() {
                         match event {
                             WindowEvent::Occluded(occluded) => if occluded {
                                 control_flow.set_control_flow(ControlFlow::Wait);
-
                             } else {
                                 control_flow.set_control_flow(ControlFlow::Poll);
                                 drawer.reconfigure()
@@ -103,11 +109,8 @@ async fn run() {
 
                                 let delta_time = delta_time.update();
                                 elapsed_time += delta_time as f64 / 1_000_000_000.0;
-                                // drawer.update_mesh(&generate_mesh(    glam::IVec3::new(0, 0, 0),server::chunk::Chunk::from_perlin_noise(&noise, elapsed_time).create_faces(),));
-                                drawer.update_mesh(&generate_mesh(
-                                    glam::IVec3::new(0, 0, 0),
-                                    server::chunk::Chunk::from_pyramide().create_faces(),
-                                ));
+                                let cam_pos = drawer.camera().controller().pos();
+                                let cam_dir = drawer.camera().controller().dir();
 
                                 if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }
 
