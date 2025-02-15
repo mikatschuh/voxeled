@@ -32,7 +32,6 @@ impl Chunk {
                 }
             }
         }
-
         Self {
             pos,
             voxels,

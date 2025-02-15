@@ -46,12 +46,12 @@ Redstone System
 
 Bens Terminal Program:
 
-echo "#!/bin/zsh
+echo "#!/bin/csh
 
 git pull
 cargo run
-" > ../run.sh
-chmod +x ../run.sh
+" > ../run.csh
+chmod +x ../run.csh
 
 #### STOP NICHT WEITER KOPIEREN ####
 
