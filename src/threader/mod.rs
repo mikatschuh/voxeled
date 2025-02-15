@@ -1,3 +1,4 @@
+use crossbeam::atomic::AtomicCell;
 /* threading goals
 
 verschiedene Arten von Tasks:
@@ -14,40 +15,53 @@ No Priority Tasks:
 
     Werden ausgeführt sofern Zeit zu Verfügung steht.
 */
-use crossbeam::channel::{bounded, Sender};
+use crossbeam::channel::{bounded, Receiver, Sender};
 use crossbeam::deque::Injector;
 
+use std::time::Instant;
 use std::{sync::Arc, thread};
 pub mod task;
 use task::Task;
 
 pub struct Threadpool {
     workers: Vec<thread::JoinHandle<()>>,
+    sleeping: Arc<AtomicCell<usize>>,
+    last_update: Instant,
+
     pub priority_queue: Arc<Injector<Task>>,
     normal_queues: [Arc<Injector<Task>>; 2],
     waker: Sender<bool>,
+    wake_call: Receiver<bool>,
 }
 impl Threadpool {
-    pub fn new(num_threads: Option<usize>) -> Self {
-        let num_threads = num_threads.unwrap_or_else(|| num_cpus::get());
+    pub fn new() -> Self {
+        let (waker, wake_call) = bounded(1);
 
-        // Create queues
-        let priority_queue = Arc::new(Injector::<Task>::new());
-        let normal_queues = [
-            Arc::new(Injector::<Task>::new()),
-            Arc::new(Injector::<Task>::new()),
-        ];
+        Threadpool {
+            workers: Vec::new(),
+            sleeping: Arc::new(AtomicCell::new(0)),
+            last_update: Instant::now(),
 
-        let mut workers = Vec::with_capacity(num_threads);
-        let (waker, wake_call) = bounded::<bool>(1);
+            priority_queue: Arc::new(Injector::<Task>::new()),
+            normal_queues: [
+                Arc::new(Injector::<Task>::new()),
+                Arc::new(Injector::<Task>::new()),
+            ],
+            waker,
+            wake_call,
+        }
+    }
+    pub fn launch(&mut self, num_threads: Option<usize>) {
+        let num_threads = num_threads.unwrap_or_else(|| num_cpus::get() - 1);
 
         for i in 0..num_threads {
-            let priority_queue = priority_queue.clone();
-            let normal_queues = normal_queues.clone();
+            let priority_queue = self.priority_queue.clone();
+            let normal_queues = self.normal_queues.clone();
 
-            let wake_call = wake_call.clone();
+            let wake_call = self.wake_call.clone();
+            let sleeping = self.sleeping.clone();
 
-            workers.push(thread::spawn(move || {
+            self.workers.push(thread::spawn(move || {
                 let mut poll = 0_usize;
                 loop {
                     // Always handle ALL priority tasks first
@@ -76,24 +90,34 @@ impl Threadpool {
                     } else {
                         poll = 0;
                         println!("#{}: no tasks anymore", i);
+                        sleeping.fetch_add(1);
                         match wake_call.recv() {
-                            Ok(false) => {
-                                println!("#{}: terminated", i);
-                                break;
-                            }
-                            Err(_) => break,
+                            Ok(false) | Err(_) => break,
                             _ => println!("#{}: woke up!", i),
                         }
+                        sleeping.fetch_sub(1);
                     }
                 }
+                sleeping.fetch_sub(1);
+                println!("#{}: terminated", i)
             }));
         }
-
-        Threadpool {
-            workers,
-            priority_queue,
-            normal_queues,
-            waker,
+    }
+    pub fn update(&mut self) {
+        if self.last_update.elapsed().as_nanos() >= 500_000_000 {
+            let available_threads = num_cpus::get() as i64 - 1 - self.sleeping.load() as i64;
+            println!(
+                "threadpool outdated, checking for how many threads are available right now: {}",
+                available_threads
+            );
+            if available_threads > 0 {
+                self.launch(Some(available_threads as usize));
+            } else if available_threads < 0 {
+                for _ in 0..self.workers.len().max(-available_threads as usize) {
+                    let _ = self.waker.send(false);
+                }
+            }
+            self.last_update = Instant::now()
         }
     }
     pub fn add_to_first(&mut self, task: Task) {

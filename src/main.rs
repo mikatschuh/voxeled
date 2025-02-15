@@ -1,11 +1,14 @@
 use std::time::Instant;
 
-use glam::Vec3;
+use glam::{IVec3, Vec3};
 use gpu::{
     camera::{Camera, Camera3d},
     camera_controller::{CameraController, SmoothController},
 };
-use server::chunk_sys::Chunks;
+use server::{
+    chunk::{generate_mesh, Chunk},
+    chunk_sys::Chunks,
+};
 use threader::task::Task;
 use winit::{
     dpi::PhysicalSize,
@@ -44,7 +47,7 @@ async fn run() {
     let mut elapsed_time = 0.0;
     let noise = server::voxel::AnimatedNoise::new(
         42,  // Seed für Reproduzierbarkeit
-        0.1, // time_scale - kleinere Werte = langsamere Animation
+        1.0, // time_scale - kleinere Werte = langsamere Animation
         0.1, // space_scale - kleinere Werte = größere Strukturen
     );
     let mut world = Chunks::default();
@@ -63,7 +66,8 @@ async fn run() {
     ));
     //  println!("time it took (hole): {:#?}", now.elapsed());
 
-    let mut threadpool = threader::Threadpool::new(None);
+    let mut threadpool = threader::Threadpool::new();
+    threadpool.launch(None);
     event_loop // main event loop
         .run(move |event, control_flow| {
             if !keys.handled_event(drawer.window.id(), &event) {
@@ -94,9 +98,8 @@ async fn run() {
 
                             WindowEvent::CloseRequested => {
                                 // do saving and stuff
-
                                 threadpool.drop();
-                                control_flow.exit()
+                                control_flow.exit();
                             },
                             WindowEvent::Resized(physical_size) => {
                                 drawer.resize(physical_size);
@@ -105,12 +108,18 @@ async fn run() {
                                 // This tells winit that we want another frame after this one
                                 drawer.window.request_redraw();
 
+                                threadpool.update();
+
                                 if keys.esc.just_pressed() { drawer.window.flip_focus() }
 
                                 let delta_time = delta_time.update();
                                 elapsed_time += delta_time as f64 / 1_000_000_000.0;
                                 let cam_pos = drawer.camera().controller().pos();
                                 let cam_dir = drawer.camera().controller().dir();
+
+                                drawer.update_mesh(&generate_mesh(cam_pos, IVec3::ZERO,
+                                    Chunk::from_perlin_noise(IVec3::ZERO, &noise, elapsed_time).create_faces()
+                                ));
 
                                 if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }
 

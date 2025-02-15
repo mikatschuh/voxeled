@@ -42,3 +42,18 @@ Redstone System
     Das erlaubt es einem voll automatische Miner zu bauen - mehr Automatisierung, Yay!
     Bedrock kommt raus da es unten sowie oben keine Grenze mehr gibt.
     Obsidian, weiß noch nicht, erstmal nicht.
+
+
+Bens Terminal Program:
+
+echo "#!/bin/zsh
+
+git pull
+cargo run
+" > ../run.sh
+chmod +x ../run.sh
+
+#### STOP NICHT WEITER KOPIEREN ####
+
+alias run="../run.sh"
+source ~/.zshrc
