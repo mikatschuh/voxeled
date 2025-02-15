@@ -1,3 +1,5 @@
+use std::f64::consts::FRAC_PI_2;
+
 use super::voxel::{AnimatedNoise, VoxelType};
 use glam::{IVec3, Vec3};
 
@@ -44,11 +46,11 @@ impl Chunk {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
                     let val = noise.get_octaves(
-                        (x as i32 + pos.x) as f64,
-                        (y as i32 + pos.y) as f64,
-                        (z as i32 + pos.z) as f64,
+                        (x as i32 + pos.x * 32) as f64,
+                        (y as i32 + pos.y * 32) as f64,
+                        (z as i32 + pos.z * 32) as f64,
                         time,
-                        2,
+                        4,
                     );
                     *voxel = if val > 0.9 {
                         VoxelType::Solid
@@ -66,9 +68,18 @@ impl Chunk {
         }
     }
 
-    pub fn with_ground_layer(pos: IVec3) -> Self {
+    pub fn from_pyramide(pos: IVec3, dir: Vec3) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        voxels[0][0][0] = VoxelType::Solid;
+
+        super::for_every_chunk_in_frustum(
+            Vec3::new(16.0, 16.0, 16.0),
+            dir,
+            FRAC_PI_2 as f32,
+            1.0,
+            3.0,
+            |coord| voxels[coord.x as usize][coord.y as usize][coord.z as usize] = VoxelType::Solid,
+        );
+
         Self {
             pos,
             voxels,

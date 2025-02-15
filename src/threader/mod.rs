@@ -66,7 +66,7 @@ impl Threadpool {
                 loop {
                     // Always handle ALL priority tasks first
                     while let Some(task) = priority_queue.steal().success() {
-                        task.execute(i);
+                        task.run(i);
                     }
 
                     // Only handle normal/second queue tasks when no priority tasks exist
@@ -82,18 +82,17 @@ impl Threadpool {
                     } else {
                         normal_queues[0].steal().success()
                     } {
-                        task.execute(i);
+                        task.run(i);
                         counter += 1;
                     }
                     if poll < 2 {
                         poll += 1;
                     } else {
                         poll = 0;
-                        println!("#{}: no tasks anymore", i);
                         sleeping.fetch_add(1);
                         match wake_call.recv() {
                             Ok(false) | Err(_) => break,
-                            _ => println!("#{}: woke up!", i),
+                            _ => {}
                         }
                         sleeping.fetch_sub(1);
                     }
@@ -106,10 +105,7 @@ impl Threadpool {
     pub fn update(&mut self) {
         if self.last_update.elapsed().as_nanos() >= 500_000_000 {
             let available_threads = num_cpus::get() as i64 - 1 - self.sleeping.load() as i64;
-            println!(
-                "threadpool outdated, checking for how many threads are available right now: {}",
-                available_threads
-            );
+
             if available_threads > 0 {
                 self.launch(Some(available_threads as usize));
             } else if available_threads < 0 {
@@ -132,9 +128,25 @@ impl Threadpool {
         self.priority_queue.push(task);
         let _ = self.waker.send(true);
     }
+    pub fn priority<F>(&mut self, f: F)
+    where
+        F: FnOnce(usize) + Send + 'static,
+    {
+        self.priority_queue.push(Task::new(Box::new(f)));
+        let _ = self.waker.send(true);
+    }
     pub fn drop(&mut self) {
-        for _ in 0..self.workers.len() {
-            let _ = self.waker.send(false);
+        'outer: loop {
+            for _ in 0..self.workers.len() {
+                let _ = self.waker.send(false);
+            }
+            for handle in self.workers.iter() {
+                if !handle.is_finished() {
+                    println!("handle not finished!");
+                    continue 'outer;
+                }
+            }
+            break;
         }
         while let Some(worker) = self.workers.pop() {
             if let Err(e) = worker.join() {

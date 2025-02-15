@@ -1,16 +1,14 @@
-use glam::{IVec3, Vec3};
+use std::sync::Arc;
+
+use glam::Vec3;
 use gpu::{
     camera::{Camera, Camera3d},
     camera_controller::{CameraController, SmoothController},
 };
-use server::{
-    chunk::{generate_mesh, Chunk},
-    chunk_sys::Chunks,
-};
-use threader::task::Task;
+use server::Server;
 use winit::{
     dpi::PhysicalSize,
-    event::*,
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -41,40 +39,19 @@ async fn run() {
     let mut drawer = gpu::Drawer::connect_to(&window, wgpu::PresentMode::Fifo, &mut camera).await; // this connectes a drawer to the window
     let mut keys = input::Keys::new();
 
-    let mut elapsed_time = 0.0;
-    let noise = server::voxel::AnimatedNoise::new(
-        42,  // Seed für Reproduzierbarkeit
-        1.0, // time_scale - kleinere Werte = langsamere Animation
-        0.1, // space_scale - kleinere Werte = größere Strukturen
-    );
-    let mut world = Chunks::default();
-
-    let cam_pos = drawer.camera().controller().pos();
-    let cam_dir = drawer.camera().controller().dir();
-    // let now = Instant::now();
-    drawer.update_mesh(&world.create_mesh(
-        cam_pos,
-        cam_dir,
-        Camera::<SmoothController>::FOV,
-        drawer.window.aspect_ratio,
-        1.0,
-        &noise,
-        elapsed_time,
+    let elapsed_time = 0.0;
+    let noise = Arc::new(server::voxel::AnimatedNoise::new(
+        random::get_random(0, 100), // Seed für Reproduzierbarkeit
+        1.0,                        // time_scale - kleinere Werte = langsamere Animation
+        0.1,                        // space_scale - kleinere Werte = größere Strukturen
     ));
-    //  println!("time it took (hole): {:#?}", now.elapsed());
+    let mut world = Server::new();
+
     let mut delta_time = time::DeltaTime::now();
 
     let mut threadpool = threader::Threadpool::new();
     threadpool.launch(None);
-    for num in 0..10 {
-        threadpool.add_priority(Task::new_benchmark(format!("priority {}", num).leak()))
-    }
-    for num in 0..10 {
-        threadpool.add_to_first(Task::new_benchmark(format!("first {}", num).leak()))
-    }
-    for num in 0..10 {
-        threadpool.add_to_second(Task::new_benchmark(format!("second {}", num).leak()))
-    }
+
     event_loop // main event loop
         .run(move |event, control_flow| {
             if !keys.handled_event(drawer.window.id(), &event) {
@@ -106,16 +83,21 @@ async fn run() {
 
                                 if keys.esc.just_pressed() { drawer.window.flip_focus() }
 
-                                let delta_time = delta_time.update();
-                                elapsed_time += delta_time as f64 / 1_000_000_000.0;
                                 let cam_pos = drawer.camera().controller().pos();
                                 let cam_dir = drawer.camera().controller().dir();
 
-                                drawer.update_mesh(&generate_mesh(cam_pos, IVec3::ZERO,
-                                    Chunk::from_fractal_noise(IVec3::ZERO, &noise, elapsed_time).create_faces()
+                                drawer.update_mesh(&world.get_mesh(
+                                    cam_pos,
+                                    cam_dir,
+                                    Camera::<SmoothController>::FOV,
+                                    drawer.window.aspect_ratio,
+                                    2.0,
+                                    noise.clone(),
+                                    elapsed_time,
+                                    &mut threadpool
                                 ));
 
-                                if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }
+                                if drawer.window.focused() { drawer.update(&keys, delta_time.update() as f32) }
 
                                 match drawer.draw() {
                                     Ok(_) => {}

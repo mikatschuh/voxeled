@@ -29,6 +29,7 @@ impl VoxelType {
 }
 use noise::{NoiseFn, Perlin};
 
+#[derive(Debug)]
 pub struct AnimatedNoise {
     noise: Perlin,
     time_scale: f64,
@@ -65,6 +66,10 @@ impl AnimatedNoise {
         (value + 1.0) * 0.5
     }
     pub fn get_octaves(&self, x: f64, y: f64, z: f64, time: f64, octaves: u32) -> f64 {
+        let x = x * self.space_scale;
+        let y = y * self.space_scale;
+        let z = z * self.space_scale;
+
         let mut value = 0.0;
         let mut amplitude = 1.0;
         let mut frequency = 1.0;

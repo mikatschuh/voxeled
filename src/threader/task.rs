@@ -1,28 +1,31 @@
-use std::time::{Duration, Instant};
-
-pub enum Task {
-    Benchmark { label: &'static str, time: Instant },
+pub struct Task {
+    func: Box<dyn (FnOnce(usize)) + Send + 'static>,
 }
 
 impl Task {
-    pub fn new_benchmark(label: &'static str) -> Self {
-        Self::Benchmark {
-            label,
-            time: Instant::now(),
-        }
+    pub fn new(func: Box<dyn (FnOnce(usize)) + Send + 'static>) -> Self {
+        Self { func }
     }
-    pub fn execute(self, i: usize) {
-        match self {
-            Self::Benchmark { label, time } => {
-                // std::thread::sleep(Duration::from_millis(300));
-                println!("#{}: {} finished at: {:#?}", i, label, time.elapsed())
-            }
-        }
-    }
-    pub fn finish_protocol() -> Vec<Self> {
-        vec![Self::Benchmark {
-            label: "last",
-            time: Instant::now(),
-        }]
+    pub fn run(self, i: usize) {
+        (self.func)(i)
     }
 }
+/*
+           GenerateChunkMesh {
+               result,
+               cam_pos,
+               chunk_pos,
+               noise,
+               chunks,
+           } => {
+               let _ = result.send(crate::server::chunk::generate_mesh(
+                   cam_pos,
+                   chunk_pos,
+                   chunks
+                       .lock()
+                       .unwrap()
+                       .get(chunk_pos, |pos| Chunk::from_fractal_noise(pos, &noise, 0.0))
+                       .create_faces(),
+               ));
+           }
+*/
