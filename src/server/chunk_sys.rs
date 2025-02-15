@@ -52,7 +52,7 @@ impl Chunks {
                 cam_pos,
                 chunk_coord,
                 self.get(chunk_coord, |pos| {
-                    Chunk::from_perlin_noise(pos, noise, time)
+                    Chunk::from_fractal_noise(pos, noise, time)
                 })
                 .create_faces(),
             );

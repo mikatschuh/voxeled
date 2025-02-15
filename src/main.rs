@@ -118,7 +118,7 @@ async fn run() {
                                 let cam_dir = drawer.camera().controller().dir();
 
                                 drawer.update_mesh(&generate_mesh(cam_pos, IVec3::ZERO,
-                                    Chunk::from_perlin_noise(IVec3::ZERO, &noise, elapsed_time).create_faces()
+                                    Chunk::from_fractal_noise(IVec3::ZERO, &noise, elapsed_time).create_faces()
                                 ));
 
                                 if drawer.window.focused() { drawer.update(&keys, delta_time as f32) }
