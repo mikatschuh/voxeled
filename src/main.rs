@@ -43,7 +43,7 @@ async fn run() {
     let noise = Arc::new(server::voxel::AnimatedNoise::new(
         random::get_random(0, 100), // Seed für Reproduzierbarkeit
         1.0,                        // time_scale - kleinere Werte = langsamere Animation
-        0.1,                        // space_scale - kleinere Werte = größere Strukturen
+        0.2,                        // space_scale - kleinere Werte = größere Strukturen
     ));
     let mut world = Server::new();
 
@@ -91,7 +91,7 @@ async fn run() {
                                     cam_dir,
                                     Camera::<SmoothController>::FOV,
                                     drawer.window.aspect_ratio,
-                                    2.0,
+                                    3.0,
                                     noise.clone(),
                                     elapsed_time,
                                     &mut threadpool

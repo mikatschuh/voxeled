@@ -1,13 +1,19 @@
-pub struct Task {
-    func: Box<dyn (FnOnce(usize)) + Send + 'static>,
+pub enum Task {
+    Dynamic(Box<dyn (FnOnce()) + Send + 'static>),
 }
+use Task::*;
 
 impl Task {
-    pub fn new(func: Box<dyn (FnOnce(usize)) + Send + 'static>) -> Self {
-        Self { func }
+    pub fn new_dynamic<F>(func: F) -> Self
+    where
+        F: (FnOnce()) + Send + 'static,
+    {
+        Self::Dynamic(Box::new(func))
     }
-    pub fn run(self, i: usize) {
-        (self.func)(i)
+    pub fn run(self) {
+        match self {
+            Dynamic(func) => (func)(),
+        }
     }
 }
 /*

@@ -1,6 +1,7 @@
 pub mod chunk;
 pub mod voxel;
 use chunk::Chunk;
+use crossbeam::channel::{bounded, Receiver};
 use glam::IVec3;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -30,7 +31,7 @@ impl Server {
 
         let cam_chunk_pos = cam_pos / 32.0;
 
-        let mut meshes: Vec<Arc<Mutex<Mesh>>> = Vec::new();
+        let mut meshes: Vec<Receiver<Box<Mesh>>> = Vec::new();
 
         for_every_chunk_in_frustum(
             cam_chunk_pos,
@@ -39,25 +40,14 @@ impl Server {
             aspect_ratio,
             render_distance,
             |chunk_coord| {
-                mesh += crate::server::chunk::generate_mesh(
-                    cam_pos,
-                    *chunk_coord,
-                    self.chunks
-                        .lock()
-                        .unwrap()
-                        .get(*chunk_coord, |pos| {
-                            Chunk::from_fractal_noise(pos, &noise, 0.0)
-                        })
-                        .create_faces(),
-                );
-
-                /*let chunk_coord = chunk_coord.clone();
+                let chunk_coord = chunk_coord.clone();
                 let chunks = self.chunks.clone();
-                meshes.push(Arc::new(Mutex::new(Mesh::default())));
-                let mesh_pointer = meshes.last_mut().unwrap().clone();
+
                 let noise = noise.clone();
-                threadpool.priority(move |i| {
-                    *mesh_pointer.lock().unwrap() = crate::server::chunk::generate_mesh(
+                let (s, r) = bounded::<Box<Mesh>>(1);
+
+                threadpool.dynamic_priority(move || {
+                    let result = Box::new(crate::server::chunk::generate_mesh(
                         cam_pos,
                         chunk_coord,
                         chunks
@@ -67,12 +57,14 @@ impl Server {
                                 Chunk::from_fractal_noise(pos, &noise, 0.0)
                             })
                             .create_faces(),
-                    );
-                });*/
+                    ));
+                    let _ = s.send(result);
+                });
+                meshes.push(r)
             },
         );
         for new_mesh in meshes.into_iter() {
-            // mesh += new_mesh.lock().unwrap().clone()
+            mesh += (*new_mesh.recv().unwrap()).clone()
         }
 
         mesh

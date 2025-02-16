@@ -61,45 +61,53 @@ impl Threadpool {
             let wake_call = self.wake_call.clone();
             let sleeping = self.sleeping.clone();
 
-            self.workers.push(thread::spawn(move || {
-                let mut poll = 0_usize;
-                loop {
-                    // Always handle ALL priority tasks first
-                    while let Some(task) = priority_queue.steal().success() {
-                        task.run(i);
-                    }
-
-                    // Only handle normal/second queue tasks when no priority tasks exist
-                    let mut counter = 0;
-                    while let Some(task) = if counter < 3 {
-                        normal_queues[0].steal().success().or_else(|| {
-                            counter = 0;
-                            normal_queues[1].steal().success()
-                        })
-                    } else if let Some(task) = normal_queues[1].steal().success() {
-                        counter = 0;
-                        Some(task)
-                    } else {
-                        normal_queues[0].steal().success()
-                    } {
-                        task.run(i);
-                        counter += 1;
-                    }
-                    if poll < 2 {
-                        poll += 1;
-                    } else {
-                        poll = 0;
-                        sleeping.fetch_add(1);
-                        match wake_call.recv() {
-                            Ok(false) | Err(_) => break,
-                            _ => {}
+            let Ok(join_handle) = thread::Builder::new()
+                .name(format!("{}", i))
+                .spawn(move || {
+                    let mut poll = 0_usize;
+                    loop {
+                        // Always handle ALL priority tasks first
+                        while let Some(task) = priority_queue.steal().success() {
+                            task.run();
                         }
-                        sleeping.fetch_sub(1);
+
+                        // Only handle normal/second queue tasks when no priority tasks exist
+                        let mut counter = 0;
+                        while let Some(task) = if counter < 3 {
+                            normal_queues[0].steal().success().or_else(|| {
+                                counter = 0;
+                                normal_queues[1].steal().success()
+                            })
+                        } else if let Some(task) = normal_queues[1].steal().success() {
+                            counter = 0;
+                            Some(task)
+                        } else {
+                            normal_queues[0].steal().success()
+                        } {
+                            task.run();
+                            counter += 1;
+                        }
+                        if poll < 2 {
+                            poll += 1;
+                        } else {
+                            poll = 0;
+                            sleeping.fetch_add(1);
+                            match wake_call.recv() {
+                                Ok(false) | Err(_) => break,
+                                _ => {}
+                            }
+                            sleeping.fetch_sub(1);
+                        }
                     }
-                }
-                sleeping.fetch_sub(1);
-                println!("#{}: terminated", i)
-            }));
+                    sleeping.fetch_sub(1);
+                    println!("#{}: terminated", i)
+                })
+            else {
+                println!("thread couldnt been spawned");
+                continue;
+            };
+
+            self.workers.push(join_handle);
         }
     }
     pub fn update(&mut self) {
@@ -118,22 +126,22 @@ impl Threadpool {
     }
     pub fn add_to_first(&mut self, task: Task) {
         self.normal_queues[0].push(task);
-        let _ = self.waker.send(true);
+        let _ = self.waker.try_send(true);
     }
     pub fn add_to_second(&mut self, task: Task) {
         self.normal_queues[1].push(task);
-        let _ = self.waker.send(true);
+        let _ = self.waker.try_send(true);
     }
     pub fn add_priority(&mut self, task: Task) {
         self.priority_queue.push(task);
-        let _ = self.waker.send(true);
+        let _ = self.waker.try_send(true);
     }
-    pub fn priority<F>(&mut self, f: F)
+    pub fn dynamic_priority<F>(&mut self, f: F)
     where
-        F: FnOnce(usize) + Send + 'static,
+        F: FnOnce() + Send + 'static,
     {
-        self.priority_queue.push(Task::new(Box::new(f)));
-        let _ = self.waker.send(true);
+        self.priority_queue.push(Task::new_dynamic(f));
+        let _ = self.waker.try_send(true);
     }
     pub fn drop(&mut self) {
         'outer: loop {
@@ -153,5 +161,11 @@ impl Threadpool {
                 println!("thread {} panicked, message: {:?}", self.workers.len(), e)
             };
         }
+    }
+    fn wake_call(&mut self) {
+        let _ = self.waker.try_send(true);
+    }
+    fn terminator_call(&mut self) {
+        let _ = self.waker.send(false);
     }
 }
