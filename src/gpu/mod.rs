@@ -12,6 +12,7 @@ use camera_controller::CameraController;
 use mesh::*;
 use texture::Texture;
 use wgpu::util::DeviceExt;
+use winit::event_loop::EventLoopWindowTarget;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a, CC: CameraController, C>
@@ -244,26 +245,27 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         self.surface.configure(&self.device, &self.config);
     }
     /// Eine Funktion um den Status Quo zu verändern.
-    pub fn update(&mut self, keys: &crate::input::Keys, delta_time: f32) {
-        self.camera
-            .controller()
-            .rotate_around_angle(glam::Vec3::new(
-                -keys.mouse_motion.x as f32,
-                -keys.mouse_motion.y as f32,
-                keys.e.state - keys.q.state,
-            ));
-        if keys.mouse_wheel.y != 0.0 {
-            self.camera.controller().update_acc(keys.mouse_wheel.y)
+    pub fn update(&mut self, keys: &crate::input::KeyMap) {
+        if self.window.focused() {
+            self.camera
+                .controller()
+                .rotate_around_angle(glam::Vec3::new(
+                    -keys.mouse_motion.x as f32,
+                    keys.mouse_motion.y as f32,
+                    keys.e.state - keys.q.state,
+                ));
+            if keys.mouse_wheel.y != 0.0 {
+                self.camera.controller().update_acc(keys.mouse_wheel.y)
+            }
+            self.camera.controller().update(
+                glam::Vec3::new(
+                    keys.a.state - keys.d.state,
+                    keys.shift.state - keys.space.state,
+                    keys.w.state - keys.s.state,
+                )
+                .normalize_or_zero(),
+            );
         }
-        self.camera.controller().update(
-            glam::Vec3::new(
-                keys.a.state - keys.d.state,
-                keys.shift.state - keys.space.state,
-                keys.w.state - keys.s.state,
-            )
-            .normalize_or_zero(),
-            delta_time,
-        );
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -290,8 +292,28 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 usage: wgpu::BufferUsages::INDEX,
             });
     }
+    pub fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
+        match self.try_draw() {
+            Ok(_) => {}
+            // Reconfigure the surface if it's lost or outdated
+            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => self.reconfigure(),
+            // The system is out of memory, we should probably quit
+            Err(wgpu::SurfaceError::OutOfMemory) => {
+                log::error!("OutOfMemory");
+                control_flow.exit();
+            }
+
+            // This happens when the a frame takes too long to present
+            Err(wgpu::SurfaceError::Timeout) => {
+                log::warn!("Surface timeout")
+            }
+        }
+    }
+
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
-    pub fn draw(&mut self) -> Result<(), wgpu::SurfaceError> {
+    /// # Errors
+    ///
+    pub fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture

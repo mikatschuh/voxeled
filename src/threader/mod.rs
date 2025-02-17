@@ -7,11 +7,11 @@ Priority Tasks:
 
     Werden versucht sofort auszuführen. Ignoriert alle anderen Tasks.
 
-Casual Tasks:
+First Tasks:
 
     Werden normal ausgeführt.
 
-No Priority Tasks:
+Second Tasks:
 
     Werden ausgeführt sofern Zeit zu Verfügung steht.
 */
@@ -23,6 +23,7 @@ use std::{sync::Arc, thread};
 pub mod task;
 use task::Task;
 
+#[derive(Debug)]
 pub struct Threadpool {
     workers: Vec<thread::JoinHandle<()>>,
     sleeping: Arc<AtomicCell<usize>>,
@@ -52,9 +53,7 @@ impl Threadpool {
         }
     }
     pub fn launch(&mut self, num_threads: Option<usize>) {
-        let num_threads = num_threads.unwrap_or_else(|| num_cpus::get() - 1);
-
-        for i in 0..num_threads {
+        for i in 0..num_threads.unwrap_or_else(|| num_cpus::get()) {
             let priority_queue = self.priority_queue.clone();
             let normal_queues = self.normal_queues.clone();
 
@@ -64,6 +63,7 @@ impl Threadpool {
             let Ok(join_handle) = thread::Builder::new()
                 .name(format!("{}", i))
                 .spawn(move || {
+                    let mut counter = 0;
                     let mut poll = 0_usize;
                     loop {
                         // Always handle ALL priority tasks first
@@ -72,7 +72,6 @@ impl Threadpool {
                         }
 
                         // Only handle normal/second queue tasks when no priority tasks exist
-                        let mut counter = 0;
                         while let Some(task) = if counter < 3 {
                             normal_queues[0].steal().success().or_else(|| {
                                 counter = 0;
@@ -94,13 +93,13 @@ impl Threadpool {
                             sleeping.fetch_add(1);
                             match wake_call.recv() {
                                 Ok(false) | Err(_) => break,
-                                _ => {}
+                                Ok(true) => {
+                                    sleeping.fetch_sub(1);
+                                }
                             }
-                            sleeping.fetch_sub(1);
                         }
                     }
                     sleeping.fetch_sub(1);
-                    println!("#{}: terminated", i)
                 })
             else {
                 println!("thread couldnt been spawned");
@@ -112,7 +111,7 @@ impl Threadpool {
     }
     pub fn update(&mut self) {
         if self.last_update.elapsed().as_nanos() >= 500_000_000 {
-            let available_threads = num_cpus::get() as i64 - 1 - self.sleeping.load() as i64;
+            let available_threads = num_cpus::get() as i64 - self.sleeping.load() as i64;
 
             if available_threads > 0 {
                 self.launch(Some(available_threads as usize));
@@ -143,23 +142,12 @@ impl Threadpool {
         self.priority_queue.push(Task::new_dynamic(f));
         let _ = self.waker.try_send(true);
     }
-    pub fn drop(&mut self) {
-        'outer: loop {
-            for _ in 0..self.workers.len() {
-                let _ = self.waker.send(false);
-            }
-            for handle in self.workers.iter() {
-                if !handle.is_finished() {
-                    println!("handle not finished!");
-                    continue 'outer;
-                }
-            }
-            break;
+    pub fn drop(self) {
+        for _ in 0..self.workers.len() {
+            let _ = self.waker.send(false);
         }
-        while let Some(worker) = self.workers.pop() {
-            if let Err(e) = worker.join() {
-                println!("thread {} panicked, message: {:?}", self.workers.len(), e)
-            };
+        for worker in self.workers {
+            let _ = worker.join();
         }
     }
     fn wake_call(&mut self) {

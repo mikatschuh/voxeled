@@ -84,7 +84,6 @@ impl Default for Chunks {
 }
 
 use crate::gpu::mesh::Mesh;
-use crate::threader::task::Task;
 use crate::threader::Threadpool;
 impl Chunks {
     pub fn get<'a, F>(&'a mut self, pos: IVec3, mut gen: F) -> MutexGuard<'a, Chunk>
@@ -184,5 +183,5 @@ pub fn for_every_chunk_in_frustum<F>(
         }
     }
 
-    points.iter().map(|point| first(point)).collect::<()>();
+    points.iter().for_each(|point| first(point));
 }

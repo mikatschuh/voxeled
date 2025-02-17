@@ -5,13 +5,13 @@ use super::camera_controller::CameraController;
 // pub use super::exotic_cameras::CinematicThirdPersonCamera;
 
 /// Speichert die Eigenschaften einer 3d Kamera.
-pub trait Camera3d<C: CameraController>: Default {
+pub trait Camera3d<C: CameraController> {
     const NEAR_PLANE: f32;
     const FAR_PLANE: f32;
 
     const FOV: f32;
 
-    fn new(pos: Vec3, dir: Vec3) -> Self;
+    fn new(pos: Vec3, dir: Vec3, delta_time: crate::time::DeltaTime) -> Self;
 
     fn controller(&mut self) -> &mut C;
 
@@ -33,9 +33,9 @@ impl<C: CameraController> Camera3d<C> for Camera<C> {
 
     const FOV: f32 = std::f32::consts::FRAC_PI_2;
 
-    fn new(pos: Vec3, dir: Vec3) -> Self {
+    fn new(pos: Vec3, dir: Vec3, delta_time: crate::time::DeltaTime) -> Self {
         Self {
-            con: C::new(pos, dir),
+            con: C::new(pos, dir, delta_time),
         }
     }
 

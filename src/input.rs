@@ -86,8 +86,229 @@ impl State {
         }
     }
 }
+struct KeyEventState {
+    pressed_in_the_last_frame: bool,
+    pressed_in_this_frame: bool,
+    last_change: Instant,
+}
+impl KeyEventState {
+    fn new(now: Instant) -> Self {
+        Self {
+            pressed_in_the_last_frame: false,
+            pressed_in_this_frame: false,
+            last_change: now,
+        }
+    }
+}
+/// Ein Objekt welches Events nach KeyEvents filtern kann.
+pub struct InputEventFilter {
+    w: KeyEventState,
+    a: KeyEventState,
+    s: KeyEventState,
+    d: KeyEventState,
+
+    e: KeyEventState,
+    q: KeyEventState,
+    f: KeyEventState,
+
+    space: KeyEventState,
+    shift: KeyEventState,
+    esc: KeyEventState,
+
+    mouse_motion: PhysicalPosition<f64>,
+    mouse_wheel: PhysicalPosition<f32>,
+}
+impl InputEventFilter {
+    /// Erstellt einen neuen Input Event Filter.
+    pub fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            w: KeyEventState::new(now),
+            a: KeyEventState::new(now),
+            s: KeyEventState::new(now),
+            d: KeyEventState::new(now),
+
+            e: KeyEventState::new(now),
+            q: KeyEventState::new(now),
+            f: KeyEventState::new(now),
+
+            space: KeyEventState::new(now),
+            shift: KeyEventState::new(now),
+            esc: KeyEventState::new(now),
+
+            mouse_motion: PhysicalPosition::new(0.0, 0.0),
+            mouse_wheel: PhysicalPosition::new(0.0, 0.0),
+        }
+    }
+    /// Funktion die true zurückgibt wenn das Event ein Input war der abgegriffen wurde.
+    /// Sie gibt false zurück wenn sie das Event nicht handeln konnte. Die Funktion funktioniert also wie ein Sieb,
+    /// welches Tastatur / Maus - Events rausfiltert.
+    pub fn handled_event(&mut self, event: &Event<()>, own_window_id: WindowId) -> bool {
+        match event {
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta } => {
+                    self.mouse_motion = PhysicalPosition::new(
+                        self.mouse_motion.x + delta.0,
+                        self.mouse_motion.y - delta.1,
+                    );
+                }
+                _ => return false,
+            },
+            Event::WindowEvent { window_id, event } if own_window_id == *window_id => match event {
+                WindowEvent::Focused(focused) if !focused => {
+                    [
+                        &mut self.w,
+                        &mut self.a,
+                        &mut self.s,
+                        &mut self.d,
+                        &mut self.e,
+                        &mut self.q,
+                        &mut self.f,
+                        &mut self.space,
+                        &mut self.shift,
+                        &mut self.esc,
+                    ]
+                    .into_iter()
+                    .for_each(|input| input.pressed_in_this_frame = false);
+                    self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
+                    self.mouse_wheel = PhysicalPosition::new(0.0, 0.0);
+                    return false;
+                }
+                WindowEvent::MouseWheel { delta, .. } => match delta {
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        self.mouse_wheel =
+                            PhysicalPosition::new(self.mouse_wheel.x + *x, self.mouse_wheel.y - *y)
+                    }
+                    MouseScrollDelta::PixelDelta(delta) => {
+                        self.mouse_wheel = PhysicalPosition::new(
+                            self.mouse_wheel.x + delta.x as f32,
+                            self.mouse_wheel.y - delta.y as f32,
+                        )
+                    }
+                },
+                WindowEvent::KeyboardInput { event, .. } => {
+                    let pressed_key: &mut KeyEventState;
+
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::KeyW) => pressed_key = &mut self.w,
+                        PhysicalKey::Code(KeyCode::KeyA) => pressed_key = &mut self.a,
+
+                        PhysicalKey::Code(KeyCode::KeyS) => pressed_key = &mut self.s,
+                        PhysicalKey::Code(KeyCode::KeyD) => pressed_key = &mut self.d,
+
+                        PhysicalKey::Code(KeyCode::KeyE) => pressed_key = &mut self.e,
+                        PhysicalKey::Code(KeyCode::KeyQ) => pressed_key = &mut self.q,
+                        PhysicalKey::Code(KeyCode::KeyF) => pressed_key = &mut self.f,
+
+                        PhysicalKey::Code(KeyCode::Space) => pressed_key = &mut self.space,
+                        PhysicalKey::Code(KeyCode::ShiftLeft) => pressed_key = &mut self.shift,
+                        PhysicalKey::Code(KeyCode::Escape) => pressed_key = &mut self.esc,
+
+                        _ => return false,
+                    }
+                    match pressed_key.pressed_in_this_frame {
+                        true if event.state == ElementState::Released => {
+                            pressed_key.pressed_in_this_frame = false;
+                            pressed_key.last_change = Instant::now()
+                        }
+                        false => match event.state {
+                            ElementState::Pressed => {
+                                pressed_key.pressed_in_this_frame = true;
+                                pressed_key.last_change = Instant::now()
+                            }
+                            ElementState::Released => {
+                                if pressed_key.pressed_in_the_last_frame {
+                                    pressed_key.last_change = Instant::now()
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                _ => return false,
+            },
+            _ => return false,
+        }
+        true
+    }
+    /// Eine Funktion die benutzt werden kann um eine Karte aller relevanten Tasten zu erhalten.
+    /// # Beispiel
+    /// ```
+    /// let input_event_filter = InputEventFilter::new();
+    /// input_event_filter.handled_event(Event::WindowEvent {
+    ///     event: WindowEvent::KeyboardInput {
+    ///         event: KeyEvent {
+    ///             state: ElementState::Pressed,
+    ///             physical_key: PhysicalKey::Code(KeyCode::KeyW),
+    ///             ...
+    ///         },
+    ///         ...
+    ///     },
+    ///     ...
+    /// });
+    /// let key_map = input_event_filter.get();
+    /// assert_eq!(key_map.w.pressed(), true);
+    /// ```
+    pub fn get(&mut self) -> KeyMap {
+        use InputState::*;
+        let mut key_map = KeyMap::default();
+        [
+            (&mut self.w, &mut key_map.w),
+            (&mut self.a, &mut key_map.a),
+            (&mut self.s, &mut key_map.s),
+            (&mut self.d, &mut key_map.d),
+            (&mut self.e, &mut key_map.e),
+            (&mut self.q, &mut key_map.q),
+            (&mut self.f, &mut key_map.f),
+            (&mut self.space, &mut key_map.space),
+            (&mut self.shift, &mut key_map.shift),
+            (&mut self.esc, &mut key_map.esc),
+        ]
+        .into_iter()
+        .for_each(
+            |(input, final_state)| match input.pressed_in_the_last_frame {
+                true => match input.pressed_in_this_frame {
+                    true => {
+                        *final_state = State {
+                            state: Pressed,
+                            since: input.last_change,
+                        };
+                    }
+                    false => {
+                        *final_state = State {
+                            state: JustReleased,
+                            since: input.last_change,
+                        };
+                        input.pressed_in_the_last_frame = false // the last and current frame arent the same, so the last is set to the current
+                    }
+                },
+                false => match input.pressed_in_this_frame {
+                    true => {
+                        *final_state = State {
+                            state: JustPressed,
+                            since: input.last_change,
+                        };
+                        input.pressed_in_the_last_frame = true // the last and current frame arent the same, so the last is set to the current
+                    }
+                    false => {
+                        *final_state = State {
+                            state: NotPressed,
+                            since: input.last_change,
+                        }
+                    }
+                },
+            },
+        );
+        key_map.mouse_motion = self.mouse_motion;
+        key_map.mouse_wheel = self.mouse_wheel;
+
+        self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
+        self.mouse_wheel = PhysicalPosition::new(0.0, 0.0);
+        key_map
+    }
+}
 /// Eine Struktur die eine Karte aller relevanten Tasten und ihren Zustand speichert.
-pub struct Keys {
+pub struct KeyMap {
     pub w: State,
     pub a: State,
     pub s: State,
@@ -104,7 +325,7 @@ pub struct Keys {
     pub mouse_motion: PhysicalPosition<f64>,
     pub mouse_wheel: PhysicalPosition<f32>,
 }
-impl Default for Keys {
+impl Default for KeyMap {
     fn default() -> Self {
         Self {
             w: State {
@@ -153,103 +374,5 @@ impl Default for Keys {
             mouse_motion: PhysicalPosition::new(0.0, 0.0),
             mouse_wheel: PhysicalPosition::new(0.0, 0.0),
         }
-    }
-}
-
-impl Keys {
-    /// Erstellt eine neue Keys Instanz.
-    pub fn new() -> Self {
-        Self::default()
-    }
-    /// Funktion die true zurückgibt wenn das Event ein Input war und die Karte aller relevanten Tasten aktualisiert.
-    /// Sie gibt false zurück wenn sie das Event nicht handeln konnte. Die Funktion funktioniert also wie ein Sieb,
-    /// welches Tastatur / Maus - Events rausfiltert.
-    pub fn handled_event(&mut self, own_window_id: WindowId, event: &Event<()>) -> bool {
-        match event {
-            Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseMotion { delta } => {
-                    self.mouse_motion = PhysicalPosition::new(delta.0, delta.1);
-                }
-                DeviceEvent::MouseWheel { delta } => match delta {
-                    MouseScrollDelta::LineDelta(x, y) => {
-                        self.mouse_wheel = PhysicalPosition::new(*x, *y)
-                    }
-                    MouseScrollDelta::PixelDelta(delta) => {
-                        self.mouse_wheel = PhysicalPosition::new(delta.x as f32, delta.y as f32)
-                    }
-                },
-                _ => return false,
-            },
-            Event::WindowEvent { window_id, event } if *window_id == own_window_id => match event {
-                WindowEvent::KeyboardInput { event, .. } => {
-                    let pressed_key: &mut State;
-                    match event.physical_key {
-                        PhysicalKey::Code(KeyCode::KeyW) => pressed_key = &mut self.w,
-                        PhysicalKey::Code(KeyCode::KeyA) => pressed_key = &mut self.a,
-
-                        PhysicalKey::Code(KeyCode::KeyS) => pressed_key = &mut self.s,
-                        PhysicalKey::Code(KeyCode::KeyD) => pressed_key = &mut self.d,
-
-                        PhysicalKey::Code(KeyCode::KeyE) => pressed_key = &mut self.e,
-                        PhysicalKey::Code(KeyCode::KeyQ) => pressed_key = &mut self.q,
-                        PhysicalKey::Code(KeyCode::KeyF) => pressed_key = &mut self.f,
-
-                        PhysicalKey::Code(KeyCode::Space) => pressed_key = &mut self.space,
-                        PhysicalKey::Code(KeyCode::ShiftLeft) => pressed_key = &mut self.shift,
-                        PhysicalKey::Code(KeyCode::Escape) => pressed_key = &mut self.esc,
-
-                        _ => return false,
-                    }
-                    match pressed_key.state {
-                        InputState::Pressed { .. } => {
-                            if event.state == ElementState::Released {
-                                *pressed_key = State {
-                                    state: InputState::JustReleased,
-                                    since: Instant::now(),
-                                }
-                            }
-                        }
-                        InputState::NotPressed { .. } => {
-                            if event.state == ElementState::Pressed {
-                                *pressed_key = State {
-                                    state: InputState::JustPressed,
-                                    since: Instant::now(),
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                _ => return false,
-            },
-            _ => return false,
-        }
-        true
-    }
-    /// Wird nach jedem Frame aufgerufen um die Tasten zu aktualisieren.
-    /// z.B. Wenn eine Taste in diesem Frame JustPressed (gerade gedrückt) war,
-    /// dann sollte sie im Nächsten Pressed sein (gedrückt).
-    pub fn update(&mut self) {
-        for key in [
-            &mut self.w,
-            &mut self.a,
-            &mut self.s,
-            &mut self.d,
-            &mut self.e,
-            &mut self.q,
-            &mut self.f,
-            &mut self.space,
-            &mut self.shift,
-            &mut self.esc,
-        ] {
-            if let InputState::JustPressed = key.state {
-                key.state = InputState::Pressed;
-            } else if let InputState::JustReleased = key.state {
-                key.state = InputState::NotPressed;
-            }
-        }
-        self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
-
-        self.mouse_wheel = PhysicalPosition::new(0.0, 0.0)
     }
 }
