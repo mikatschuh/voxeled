@@ -29,8 +29,9 @@ impl DeltaTimeMeter {
 pub struct DeltaTime(Arc<AtomicCell<u64>>);
 
 impl DeltaTime {
+    /// Gibt die Delta-Time zurück. In Millisekunden.
     pub fn get(&self) -> f32 {
-        self.0.load() as f32
+        self.0.load() as f32 / 1_000_000.0
     }
 }
 use std::fmt;

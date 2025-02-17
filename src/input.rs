@@ -111,6 +111,8 @@ pub struct InputEventFilter {
     q: KeyEventState,
     f: KeyEventState,
 
+    p: KeyEventState,
+
     space: KeyEventState,
     shift: KeyEventState,
     esc: KeyEventState,
@@ -131,6 +133,8 @@ impl InputEventFilter {
             e: KeyEventState::new(now),
             q: KeyEventState::new(now),
             f: KeyEventState::new(now),
+
+            p: KeyEventState::new(now),
 
             space: KeyEventState::new(now),
             shift: KeyEventState::new(now),
@@ -167,6 +171,7 @@ impl InputEventFilter {
                         &mut self.space,
                         &mut self.shift,
                         &mut self.esc,
+                        &mut self.p,
                     ]
                     .into_iter()
                     .for_each(|input| input.pressed_in_this_frame = false);
@@ -199,6 +204,8 @@ impl InputEventFilter {
                         PhysicalKey::Code(KeyCode::KeyE) => pressed_key = &mut self.e,
                         PhysicalKey::Code(KeyCode::KeyQ) => pressed_key = &mut self.q,
                         PhysicalKey::Code(KeyCode::KeyF) => pressed_key = &mut self.f,
+
+                        PhysicalKey::Code(KeyCode::KeyP) => pressed_key = &mut self.p,
 
                         PhysicalKey::Code(KeyCode::Space) => pressed_key = &mut self.space,
                         PhysicalKey::Code(KeyCode::ShiftLeft) => pressed_key = &mut self.shift,
@@ -260,6 +267,7 @@ impl InputEventFilter {
             (&mut self.e, &mut key_map.e),
             (&mut self.q, &mut key_map.q),
             (&mut self.f, &mut key_map.f),
+            (&mut self.p, &mut key_map.p),
             (&mut self.space, &mut key_map.space),
             (&mut self.shift, &mut key_map.shift),
             (&mut self.esc, &mut key_map.esc),
@@ -318,6 +326,8 @@ pub struct KeyMap {
     pub q: State,
     pub f: State,
 
+    pub p: State,
+
     pub space: State,
     pub shift: State,
     pub esc: State,
@@ -357,7 +367,10 @@ impl Default for KeyMap {
                 state: InputState::NotPressed,
                 since: Instant::now(),
             },
-
+            p: State {
+                state: InputState::NotPressed,
+                since: Instant::now(),
+            },
             space: State {
                 state: InputState::NotPressed,
                 since: Instant::now(),

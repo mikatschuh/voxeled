@@ -45,11 +45,13 @@ async fn run() {
     let mut drawer = gpu::Drawer::connect_to(&window, wgpu::PresentMode::Fifo, &mut camera).await; // this connectes a drawer to the window
 
     let elapsed_time = 0.0;
+    let seed = random::get_random(0, 100);
     let noise = Arc::new(server::voxel::AnimatedNoise::new(
-        random::get_random(0, 100), // Seed für Reproduzierbarkeit
-        1.0,                        // time_scale - kleinere Werte = langsamere Animation
-        0.1,                        // space_scale - kleinere Werte = größere Strukturen
+        seed, // Seed für Reproduzierbarkeit
+        1.0,  // time_scale - kleinere Werte = langsamere Animation
+        0.04, // space_scale - kleinere Werte = größere Strukturen
     ));
+    println!("world seed: {}", seed);
     let mut world = Server::new();
 
     let mut input_event_filter = input::InputEventFilter::new();
@@ -96,7 +98,7 @@ async fn run() {
                                         cam_dir,
                                         Camera::<SmoothController>::FOV,
                                         drawer.window.aspect_ratio,
-                                        4.0,
+                                        5.0,
                                         noise.clone(),
                                         elapsed_time,
                                         &mut threadpool

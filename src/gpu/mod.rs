@@ -266,6 +266,9 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 .normalize_or_zero(),
             );
         }
+        if keys.p.just_pressed() {
+            println!("camera position: {}", self.camera.controller().pos());
+        }
         self.queue.write_buffer(
             &self.camera_buffer,
             0,

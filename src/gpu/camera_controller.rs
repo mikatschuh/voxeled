@@ -29,7 +29,7 @@ pub struct SmoothController {
     delta_time: DeltaTime,
 }
 impl SmoothController {
-    const FRICTION: f32 = 0.00000001;
+    const FRICTION: f32 = 0.001;
 }
 impl CameraController for SmoothController {
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
@@ -46,7 +46,7 @@ impl CameraController for SmoothController {
             rot,
             angle: Vec3::from(rot.to_euler(glam::EulerRot::YXZ)),
             vel: Vec3::ZERO,
-            acc: 0.00000000000000016,
+            acc: 0.002,
             delta_time,
         }
     }
@@ -63,11 +63,13 @@ impl CameraController for SmoothController {
     }
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
     fn update(&mut self, vector: Vec3) {
-        self.vel += self.rot * (vector * self.acc * self.delta_time.get());
+        self.vel += self.rot
+            * (vector * self.acc * self.delta_time.get())
+                .min(Vec3::new(100.0, 100.0, 100.0))
+                .max(Vec3::new(-100.0, -100.0, -100.0));
+        self.vel *= Self::FRICTION * self.delta_time.get();
 
         self.pos += self.vel * self.delta_time.get();
-
-        self.vel *= Self::FRICTION * self.delta_time.get();
     }
     fn update_acc(&mut self, change: f32) {
         let change = change * Self::ACC_CHANGE_SENSITIVITY;
@@ -77,7 +79,7 @@ impl CameraController for SmoothController {
             } else {
                 1.0 / change.abs()
             })
-        .clamp(0.00000000000000002, 0.0000000000000007);
+        .clamp(0.0001, 0.04);
     }
     fn pos(&self) -> Vec3 {
         self.pos
