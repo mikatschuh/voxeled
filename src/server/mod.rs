@@ -1,20 +1,65 @@
 pub mod chunk;
 pub mod voxel;
+use crate::random::AnimatedNoise;
 use chunk::Chunk;
-use crossbeam::channel::{bounded, Receiver};
+use colored::Colorize;
+use crossbeam::channel::{bounded, unbounded, Receiver};
 use glam::IVec3;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
-use voxel::AnimatedNoise;
+use std::time::Instant;
+
+enum LazyMesh {
+    Mesh(Box<Mesh>),
+    Recv(Receiver<Box<Mesh>>),
+}
 
 pub struct Server {
     chunks: Arc<Mutex<Chunks>>,
+    meshes: HashMap<IVec3, LazyMesh>,
+    was_initiated: bool,
 }
 impl Server {
     pub fn new() -> Self {
         Self {
             chunks: Arc::new(Mutex::new(Chunks::default())),
+            meshes: HashMap::new(),
+            was_initiated: false,
         }
+    }
+    pub fn init(&mut self, noise: Arc<AnimatedNoise>, threadpool: &mut Threadpool) {
+        let (original_sender, meshes) = unbounded::<(IVec3, Box<Mesh>)>();
+
+        for_every_sphere_point(IVec3::ZERO, 100, |chunk_coord| {
+            let chunk_coord = chunk_coord.clone();
+
+            let noise = noise.clone();
+            let s = original_sender.clone();
+
+            threadpool.dynamic_priority(move || {
+                let now = Instant::now();
+                let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
+                    chunk_coord,
+                    Chunk::from_perlin_noise(chunk_coord, &noise, 0.0).occlusion_map,
+                ));
+                let _ = s.send((chunk_coord, result));
+                let time = now.elapsed();
+                let msg = format!(
+                    "time it took to build the chunk mesh at {:?}: {:#?}",
+                    chunk_coord, time
+                );
+                // println!("{}",if time.as_micros() < 1000 {msg.green()} else {msg.red()},);
+            });
+        });
+        let mut total_size = 0;
+        drop(original_sender);
+        while let Ok((chunk_coord, new_mesh)) = meshes.recv() {
+            total_size += new_mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>()
+                + new_mesh.indices.len() * 4;
+            self.meshes.insert(chunk_coord, LazyMesh::Mesh(new_mesh));
+        }
+        self.was_initiated = true;
+        // println!("chunks pre-build, size of world: {} kB, size of total build mesh: {} kB",self.chunks.lock().unwrap().chunks.len() * size_of::<Chunk>() / 1000,total_size / 1000);
     }
     pub fn get_mesh(
         &mut self,
@@ -22,51 +67,72 @@ impl Server {
         viewing_dir: Vec3,
         fov: f32,
         aspect_ratio: f32,
-        render_distance: f32,
+        render_distance: usize,
         noise: Arc<AnimatedNoise>,
         time: f64,
         threadpool: &mut Threadpool,
     ) -> Mesh {
-        let mut mesh = Mesh::default();
-
+        if !self.was_initiated {
+            self.init(noise.clone(), threadpool)
+        }
+        let mut mesh = Mesh {
+            vertices: Vec::with_capacity(2457600),
+            indices: Vec::with_capacity(18432000),
+        };
         let cam_chunk_pos = cam_pos / 32.0;
 
-        let mut meshes: Vec<Receiver<Box<Mesh>>> = Vec::new();
-
-        for_every_chunk_in_frustum(
+        let points = every_chunk_in_frustum(
             cam_chunk_pos,
             viewing_dir,
             fov,
             aspect_ratio,
             render_distance,
-            |chunk_coord| {
+        );
+        points.iter().for_each(|chunk_coord| {
+            if let Some(chunk_mesh) = self.meshes.get(chunk_coord) {
+                match chunk_mesh {
+                    LazyMesh::Mesh(chunk_mesh) => {
+                        mesh += *chunk_mesh.clone();
+                    }
+                    LazyMesh::Recv(recv) => {
+                        if let Ok(chunk_mesh) = recv.try_recv() {
+                            mesh += *chunk_mesh.clone();
+                            self.meshes.insert(*chunk_coord, LazyMesh::Mesh(chunk_mesh));
+                        }
+                    }
+                }
+            } else {
                 let chunk_coord = chunk_coord.clone();
-                let chunks = self.chunks.clone();
 
                 let noise = noise.clone();
-                let (s, r) = bounded::<Box<Mesh>>(1);
+
+                let (s, r) = bounded(1);
+                self.meshes.insert(chunk_coord, LazyMesh::Recv(r));
 
                 threadpool.dynamic_priority(move || {
-                    let result = Box::new(crate::server::chunk::generate_mesh(
-                        cam_pos,
+                    let now = Instant::now();
+                    let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
                         chunk_coord,
-                        chunks
-                            .lock()
-                            .unwrap()
-                            .get(chunk_coord, |pos| {
-                                Chunk::from_fractal_noise(pos, &noise, 0.0)
-                            })
-                            .create_faces(),
+                        Chunk::from_perlin_noise(chunk_coord, &noise, 0.0).occlusion_map,
                     ));
                     let _ = s.send(result);
+                    let time = now.elapsed();
+                    let msg = format!(
+                        "time it took to build the chunk mesh at {:?}: {:#?}",
+                        chunk_coord, time
+                    );
+                    // println!("{}",if time.as_micros() < 1000 {msg.green()} else {msg.red()});
                 });
-                meshes.push(r)
-            },
-        );
-        for new_mesh in meshes.into_iter() {
-            mesh += (*new_mesh.recv().unwrap()).clone()
-        }
-
+            }
+        });
+        points.iter().for_each(|chunk_coord| {
+            if let Some(LazyMesh::Recv(recv)) = self.meshes.get(chunk_coord) {
+                if let Ok(chunk_mesh) = recv.recv_timeout(std::time::Duration::from_micros(50)) {
+                    mesh += *chunk_mesh.clone();
+                    self.meshes.insert(*chunk_coord, LazyMesh::Mesh(chunk_mesh));
+                }
+            }
+        });
         mesh
     }
 }
@@ -101,16 +167,13 @@ impl Chunks {
 use glam::{Mat3, Vec3};
 use std::collections::HashSet;
 
-pub fn for_every_chunk_in_frustum<F>(
+pub fn every_chunk_in_frustum(
     position: Vec3,
     direction: Vec3,
     fov: f32,
     aspect_ratio: f32,
-    render_distance: f32,
-    mut first: F,
-) where
-    F: FnMut(&IVec3),
-{
+    render_distance: usize,
+) -> Vec<IVec3> {
     let mut points = HashSet::new();
 
     // Normalisiere die Blickrichtung
@@ -153,8 +216,8 @@ pub fn for_every_chunk_in_frustum<F>(
         let current_distance = z as f32;
 
         // Berechne die aktuelle Breite und Höhe des Frustums an dieser Z-Position
-        let current_height = current_distance * tan_half_fov;
-        let current_width = current_height * aspect_ratio;
+        let current_height = current_distance * tan_half_fov + 1.0;
+        let current_width = current_height * aspect_ratio + 1.0;
 
         let steps_y = (current_height * 2.0).ceil() as i32;
         let steps_x = (current_width * 2.0).ceil() as i32;
@@ -183,5 +246,112 @@ pub fn for_every_chunk_in_frustum<F>(
         }
     }
 
-    points.iter().for_each(|point| first(point));
+    points.into_iter().collect::<Vec<IVec3>>()
+}
+fn for_every_sphere_point<F>(center: IVec3, radius: usize, mut closure: F)
+where
+    F: FnMut(&IVec3),
+{
+    struct WayPoint {
+        pos: IVec3,
+        fuel: usize,
+        pointing: IVec3,
+    }
+    let mut covered_points = HashSet::from([(center)]);
+
+    let new_fuel = radius - 1;
+    let mut potential_ways = vec![
+        WayPoint {
+            pos: center + IVec3::new(1, 0, 0),
+            fuel: new_fuel,
+            pointing: IVec3::new(1, 0, 0),
+        },
+        WayPoint {
+            pos: center + IVec3::new(-1, 0, 0),
+            fuel: new_fuel,
+            pointing: IVec3::new(-1, 0, 0),
+        },
+        WayPoint {
+            pos: center + IVec3::new(0, 1, 0),
+            fuel: new_fuel,
+            pointing: IVec3::new(0, 1, 0),
+        },
+        WayPoint {
+            pos: center + IVec3::new(0, -1, 0),
+            fuel: new_fuel,
+            pointing: IVec3::new(0, -1, 0),
+        },
+        WayPoint {
+            pos: center + IVec3::new(0, 0, 1),
+            fuel: new_fuel,
+            pointing: IVec3::new(0, 0, 1),
+        },
+        WayPoint {
+            pos: center + IVec3::new(0, 0, -1),
+            fuel: new_fuel,
+            pointing: IVec3::new(0, 0, -1),
+        },
+    ];
+    while let Some(way) = potential_ways.pop() {
+        covered_points.insert(way.pos);
+        if way.fuel > 0 {
+            let new_fuel = way.fuel - 1;
+            if !covered_points.contains(&(way.pos + way.pointing)) {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + way.pointing,
+                    fuel: new_fuel,
+                    pointing: way.pointing,
+                })
+            };
+            let dir = IVec3::new(1, 0, 0);
+            if !covered_points.contains(&(way.pos + dir)) && way.pointing != -dir {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + dir,
+                    fuel: new_fuel,
+                    pointing: dir,
+                })
+            };
+            let dir = IVec3::new(-1, 0, 0);
+            if !covered_points.contains(&(way.pos + dir)) {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + dir,
+                    fuel: new_fuel,
+                    pointing: dir,
+                })
+            }
+            let dir = IVec3::new(0, 1, 0);
+            if !covered_points.contains(&(way.pos + dir)) && way.pointing != -dir {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + dir,
+                    fuel: new_fuel,
+                    pointing: dir,
+                })
+            }
+            let dir = IVec3::new(0, -1, 0);
+            if !covered_points.contains(&(way.pos + dir)) && way.pointing != -dir {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + dir,
+                    fuel: new_fuel,
+                    pointing: dir,
+                })
+            }
+            let dir = IVec3::new(0, 0, 1);
+            if !covered_points.contains(&(way.pos + dir)) && way.pointing != -dir {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + dir,
+                    fuel: new_fuel,
+                    pointing: dir,
+                })
+            }
+            let dir = IVec3::new(0, 0, -1);
+            if !covered_points.contains(&(way.pos + dir)) && way.pointing != -dir {
+                potential_ways.push(WayPoint {
+                    pos: way.pos + dir,
+                    fuel: new_fuel,
+                    pointing: dir,
+                })
+            }
+        }
+    }
+    covered_points.iter().for_each(|point| closure(point));
 }

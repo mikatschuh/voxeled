@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use glam::Vec3;
 use gpu::{
@@ -21,9 +21,6 @@ mod threader;
 mod time;
 
 fn main() {
-    pollster::block_on(run())
-}
-async fn run() {
     env_logger::init(); // this logs error messages
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
@@ -42,23 +39,27 @@ async fn run() {
         delta_time.new_reader(),
     );
 
-    let mut drawer = gpu::Drawer::connect_to(&window, wgpu::PresentMode::Fifo, &mut camera).await; // this connectes a drawer to the window
+    let mut drawer = pollster::block_on(gpu::Drawer::connect_to(
+        &window,
+        wgpu::PresentMode::Fifo,
+        &mut camera,
+    )); // this connectes a drawer to the window
+
+    let mut threadpool = threader::Threadpool::new();
+    threadpool.launch(None);
 
     let elapsed_time = 0.0;
     let seed = random::get_random(0, 100);
-    let noise = Arc::new(server::voxel::AnimatedNoise::new(
+    let noise = Arc::new(random::AnimatedNoise::new(
         seed, // Seed für Reproduzierbarkeit
         1.0,  // time_scale - kleinere Werte = langsamere Animation
-        0.04, // space_scale - kleinere Werte = größere Strukturen
+        0.01, // space_scale - kleinere Werte = größere Strukturen
     ));
     println!("world seed: {}", seed);
     let mut world = Server::new();
 
     let mut input_event_filter = input::InputEventFilter::new();
     let mut frame_number = 0;
-
-    let mut threadpool = threader::Threadpool::new();
-    threadpool.launch(None);
 
     event_loop // main event loop
         .run(|event, control_flow| {
@@ -93,16 +94,18 @@ async fn run() {
                                     let cam_pos = drawer.camera().controller().pos();
                                     let cam_dir = drawer.camera().controller().dir();
 
+                                    let now = Instant::now();
                                     drawer.update_mesh(&world.get_mesh(
                                         cam_pos,
                                         cam_dir,
                                         Camera::<SmoothController>::FOV,
                                         drawer.window.aspect_ratio,
-                                        5.0,
+                                        24,
                                         noise.clone(),
                                         elapsed_time,
                                         &mut threadpool
                                     ));
+                                    // println!("time it took to build mesh in total: {:#?}", now.elapsed());
 
                                     drawer.update(&key_map);
 

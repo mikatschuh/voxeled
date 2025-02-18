@@ -15,6 +15,7 @@ crossbeam = "0.8.4"
 num_cpus = "1.16"
 rand = "0.8.5"
 noise = "*"
+colored = "2.0"
 
 [dependencies.image]
 version = "0.24"

@@ -190,9 +190,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     &device,
                     &queue,
                     &image::load_from_memory(include_bytes!("stone.png")).unwrap(),
-                    Some("Test Texture"),
+                    Some("Stone Texture"),
                 );
-
                 device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &texture_bind_group_layout,
                     entries: &[
