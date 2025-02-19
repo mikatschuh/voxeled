@@ -3,7 +3,7 @@ pub mod voxel;
 use crate::random::AnimatedNoise;
 use chunk::Chunk;
 use colored::Colorize;
-use crossbeam::channel::{bounded, unbounded, Receiver};
+use crossbeam::channel::{bounded, Receiver};
 use glam::IVec3;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -13,6 +13,7 @@ enum LazyMesh {
     Mesh(Box<Mesh>),
     Recv(Receiver<Box<Mesh>>),
 }
+const PRELOAD_DISTANCE: usize = 10;
 
 pub struct Server {
     chunks: Arc<Mutex<Chunks>>,
@@ -28,38 +29,44 @@ impl Server {
         }
     }
     pub fn init(&mut self, noise: Arc<AnimatedNoise>, threadpool: &mut Threadpool) {
-        let (original_sender, meshes) = unbounded::<(IVec3, Box<Mesh>)>();
+        for_point_in_square(IVec3::ZERO, 10, |chunk_coord| {
+            if let Some(..) = self.meshes.get(&chunk_coord) {
+            } else {
+                let chunk_coord = chunk_coord.clone();
 
-        for_every_sphere_point(IVec3::ZERO, 100, |chunk_coord| {
-            let chunk_coord = chunk_coord.clone();
+                let noise = noise.clone();
 
-            let noise = noise.clone();
-            let s = original_sender.clone();
+                let (s, r) = bounded(1);
+                self.meshes.insert(chunk_coord, LazyMesh::Recv(r));
 
-            threadpool.dynamic_priority(move || {
-                let now = Instant::now();
-                let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
-                    chunk_coord,
-                    Chunk::from_perlin_noise(chunk_coord, &noise, 0.0).occlusion_map,
-                ));
-                let _ = s.send((chunk_coord, result));
-                let time = now.elapsed();
-                let msg = format!(
-                    "time it took to build the chunk mesh at {:?}: {:#?}",
-                    chunk_coord, time
-                );
-                // println!("{}",if time.as_micros() < 1000 {msg.green()} else {msg.red()},);
-            });
+                threadpool.dynamic_priority(move || {
+                    let now = Instant::now();
+                    let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
+                        chunk_coord,
+                        Chunk::from_perlin_noise(chunk_coord, &noise, 0.0).occlusion_map,
+                    ));
+                    let _ = s.send(result);
+                    let time = now.elapsed();
+                    let msg = format!(
+                        "time it took to build the chunk mesh at {:?}: {:#?}",
+                        chunk_coord, time
+                    );
+                    println!(
+                        "{}",
+                        if time.as_micros() < 1000 {
+                            msg.green()
+                        } else {
+                            msg.red()
+                        }
+                    );
+                });
+            }
         });
-        let mut total_size = 0;
-        drop(original_sender);
-        while let Ok((chunk_coord, new_mesh)) = meshes.recv() {
-            total_size += new_mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>()
-                + new_mesh.indices.len() * 4;
-            self.meshes.insert(chunk_coord, LazyMesh::Mesh(new_mesh));
-        }
         self.was_initiated = true;
-        // println!("chunks pre-build, size of world: {} kB, size of total build mesh: {} kB",self.chunks.lock().unwrap().chunks.len() * size_of::<Chunk>() / 1000,total_size / 1000);
+        println!(
+            "chunks pre-build, size of world: {} kB",
+            self.chunks.lock().unwrap().chunks.len() * size_of::<Chunk>() / 1000
+        );
     }
     pub fn get_mesh(
         &mut self,
@@ -89,19 +96,19 @@ impl Server {
             render_distance,
         );
         points.iter().for_each(|chunk_coord| {
-            if let Some(chunk_mesh) = self.meshes.get(chunk_coord) {
-                match chunk_mesh {
-                    LazyMesh::Mesh(chunk_mesh) => {
-                        mesh += *chunk_mesh.clone();
-                    }
+            if let Some(lazy_mesh) = self.meshes.get_mut(chunk_coord) {
+                match lazy_mesh {
+                    LazyMesh::Mesh(chunk_mesh) => mesh += *chunk_mesh.clone(),
+
                     LazyMesh::Recv(recv) => {
                         if let Ok(chunk_mesh) = recv.try_recv() {
                             mesh += *chunk_mesh.clone();
-                            self.meshes.insert(*chunk_coord, LazyMesh::Mesh(chunk_mesh));
+                            *lazy_mesh = LazyMesh::Mesh(chunk_mesh)
                         }
                     }
                 }
             } else {
+                println!("{}: submitting task", chunk_coord);
                 let chunk_coord = chunk_coord.clone();
 
                 let noise = noise.clone();
@@ -121,18 +128,34 @@ impl Server {
                         "time it took to build the chunk mesh at {:?}: {:#?}",
                         chunk_coord, time
                     );
-                    // println!("{}",if time.as_micros() < 1000 {msg.green()} else {msg.red()});
+                    println!(
+                        "{}",
+                        if time.as_micros() < 1000 {
+                            msg.green()
+                        } else {
+                            msg.red()
+                        }
+                    );
                 });
             }
         });
         points.iter().for_each(|chunk_coord| {
-            if let Some(LazyMesh::Recv(recv)) = self.meshes.get(chunk_coord) {
-                if let Ok(chunk_mesh) = recv.recv_timeout(std::time::Duration::from_micros(50)) {
-                    mesh += *chunk_mesh.clone();
-                    self.meshes.insert(*chunk_coord, LazyMesh::Mesh(chunk_mesh));
+            if let Some(lazy_mesh) = self.meshes.get_mut(chunk_coord) {
+                if let LazyMesh::Recv(recv) = lazy_mesh {
+                    println!("{}: waiting", chunk_coord);
+                    if let Ok(chunk_mesh) = recv.try_recv() {
+                        println!("{}: got mesh", chunk_coord);
+                        mesh += *chunk_mesh.clone();
+                        *lazy_mesh = LazyMesh::Mesh(chunk_mesh)
+                    }
                 }
             }
         });
+        println!(
+            "frame done, size of mesh: {} kB",
+            (mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>() + mesh.indices.len() * 4)
+                / 1000
+        );
         mesh
     }
 }
@@ -354,4 +377,16 @@ where
         }
     }
     covered_points.iter().for_each(|point| closure(point));
+}
+fn for_point_in_square<F>(pos: IVec3, edge_length: i32, mut f: F)
+where
+    F: FnMut(IVec3),
+{
+    for x in (-edge_length + pos.x)..(edge_length + pos.x) {
+        for y in (-edge_length + pos.x)..(edge_length + pos.x) {
+            for z in (-edge_length + pos.x)..(edge_length + pos.x) {
+                f(IVec3::new(x, y, z))
+            }
+        }
+    }
 }

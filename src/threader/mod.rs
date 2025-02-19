@@ -18,7 +18,7 @@ Second Tasks:
 use crossbeam::channel::{bounded, Receiver, Sender};
 use crossbeam::deque::Injector;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 pub mod task;
 use task::Task;
@@ -116,11 +116,11 @@ impl Threadpool {
             if available_threads > 0 {
                 self.launch(Some(available_threads as usize));
             } else if available_threads < 0 {
-                for _ in 0..self.workers.len().max(-available_threads as usize) {
+                for _ in 0..self.workers.len().min(-available_threads as usize) {
                     let _ = self.waker.send(false);
                 }
             }
-            self.last_update = Instant::now()
+            self.last_update = Instant::now();
         }
     }
     pub fn add_to_first(&mut self, task: Task) {
@@ -144,7 +144,9 @@ impl Threadpool {
     }
     pub fn drop(self) {
         for _ in 0..self.workers.len() {
-            let _ = self.waker.send(false);
+            if let Err(..) = self.waker.send_timeout(false, Duration::from_micros(300)) {
+                return;
+            }
         }
         for worker in self.workers {
             let _ = worker.join();

@@ -65,9 +65,7 @@ fn main() {
         .run(|event, control_flow| {
             if !input_event_filter.handled_event(&event, drawer.window.id()) {
                 match event {
-                    Event::WindowEvent { event, window_id } // checks if its the right window
-                        if window_id == drawer.window.id() =>
-                    {
+                    Event::WindowEvent { event, window_id } if window_id == drawer.window.id() => {
                         match event {
                             WindowEvent::Occluded(occluded) => match occluded {
                                 true => control_flow.set_control_flow(ControlFlow::Wait),
@@ -75,10 +73,12 @@ fn main() {
                                     control_flow.set_control_flow(ControlFlow::Poll);
                                     drawer.reconfigure()
                                 }
-                            }
-                            WindowEvent::Focused(..) => {
-                                drawer.window.flip_focus()
-                            }
+                            },
+                            WindowEvent::Focused(focused) => match focused {
+                                true => drawer.window.set_focus(true),
+                                false => drawer.window.set_focus(false),
+                            },
+
                             WindowEvent::CloseRequested => control_flow.exit(),
                             WindowEvent::Resized(physical_size) => {
                                 drawer.resize(physical_size);
@@ -86,13 +86,18 @@ fn main() {
                             WindowEvent::RedrawRequested => {
                                 delta_time.update();
                                 threadpool.update();
-                                if frame_number == 0 { drawer.draw(control_flow) } else {
+                                if frame_number == 0 {
+                                    drawer.draw(control_flow)
+                                } else {
                                     let key_map = input_event_filter.get();
 
-                                    if key_map.esc.just_pressed() { drawer.window.flip_focus() }
+                                    if key_map.esc.just_pressed() {
+                                        drawer.window.flip_focus()
+                                    }
 
                                     let cam_pos = drawer.camera().controller().pos();
                                     let cam_dir = drawer.camera().controller().dir();
+                                    drawer.update(&key_map);
 
                                     let now = Instant::now();
                                     drawer.update_mesh(&world.get_mesh(
@@ -100,18 +105,17 @@ fn main() {
                                         cam_dir,
                                         Camera::<SmoothController>::FOV,
                                         drawer.window.aspect_ratio,
-                                        24,
+                                        16,
                                         noise.clone(),
                                         elapsed_time,
-                                        &mut threadpool
+                                        &mut threadpool,
                                     ));
-                                    // println!("time it took to build mesh in total: {:#?}", now.elapsed());
-
-                                    drawer.update(&key_map);
-
+                                    println!(
+                                        "time it took to build mesh in total: {:#?}",
+                                        now.elapsed()
+                                    );
                                     drawer.draw(control_flow);
                                 }
-
                                 drawer.window.request_redraw(); // This tells winit that we want another frame after this one
                                 frame_number += 1
                             }

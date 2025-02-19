@@ -103,19 +103,19 @@ impl Mesh {
             vertices: vec![
                 Vertex {
                     position: pos + Vec3::new(0.0, 0.0, 0.0),
-                    tex_coords: [1.0, 1.0],
+                    tex_coords: [0.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(0.0, 0.0, 1.0),
-                    tex_coords: [1.0, 0.0],
+                    tex_coords: [1.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 0.0, 1.0),
-                    tex_coords: [0.0, 0.0],
+                    tex_coords: [1.0, 0.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 0.0, 0.0),
-                    tex_coords: [0.0, 1.0],
+                    tex_coords: [0.0, 0.0],
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],
@@ -126,19 +126,19 @@ impl Mesh {
             vertices: vec![
                 Vertex {
                     position: pos + Vec3::new(0.0, 1.0, 0.0),
-                    tex_coords: [1.0, 1.0],
+                    tex_coords: [0.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 1.0, 0.0),
-                    tex_coords: [1.0, 0.0],
+                    tex_coords: [1.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 1.0, 1.0),
-                    tex_coords: [0.0, 0.0],
+                    tex_coords: [1.0, 0.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(0.0, 1.0, 1.0),
-                    tex_coords: [0.0, 1.0],
+                    tex_coords: [0.0, 0.0],
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],
@@ -149,19 +149,19 @@ impl Mesh {
             vertices: vec![
                 Vertex {
                     position: pos + Vec3::new(0.0, 0.0, 0.0),
-                    tex_coords: [1.0, 1.0],
+                    tex_coords: [0.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 0.0, 0.0),
-                    tex_coords: [1.0, 0.0],
+                    tex_coords: [1.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 1.0, 0.0),
-                    tex_coords: [0.0, 0.0],
+                    tex_coords: [1.0, 0.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(0.0, 1.0, 0.0),
-                    tex_coords: [0.0, 1.0],
+                    tex_coords: [0.0, 0.0],
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],
@@ -172,19 +172,19 @@ impl Mesh {
             vertices: vec![
                 Vertex {
                     position: pos + Vec3::new(0.0, 0.0, 1.0),
-                    tex_coords: [1.0, 1.0],
+                    tex_coords: [0.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(0.0, 1.0, 1.0),
-                    tex_coords: [1.0, 0.0],
+                    tex_coords: [1.0, 1.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 1.0, 1.0),
-                    tex_coords: [0.0, 0.0],
+                    tex_coords: [1.0, 0.0],
                 },
                 Vertex {
                     position: pos + Vec3::new(1.0, 0.0, 1.0),
-                    tex_coords: [0.0, 1.0],
+                    tex_coords: [0.0, 0.0],
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],

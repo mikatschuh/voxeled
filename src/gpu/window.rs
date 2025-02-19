@@ -59,13 +59,13 @@ impl<'a> Window<'a> {
                 self.window.set_cursor_visible(true);
                 self.window
                     .set_cursor_grab(window::CursorGrabMode::None)
-                    .unwrap();
+                    .unwrap()
             }
             false => {
                 self.window.set_cursor_visible(false);
                 self.window
                     .set_cursor_grab(window::CursorGrabMode::Locked)
-                    .unwrap();
+                    .unwrap()
             }
         }
         self.focused = !self.focused
