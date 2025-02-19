@@ -49,11 +49,12 @@ impl Chunk {
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
-                    let val = noise.get(
+                    let val = noise.get_octaves(
                         (x as i32 + pos.x * 32) as f64,
                         (y as i32 + pos.y * 32) as f64,
                         (z as i32 + pos.z * 32) as f64,
                         time,
+                        4,
                     );
                     *voxel = if val > 0.9 {
                         empty = false;
