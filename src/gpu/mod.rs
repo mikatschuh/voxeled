@@ -439,7 +439,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             });
     }
     pub fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
-        match self.try_draw() {
+        match self.try_draw_ChatGPT() {
             Ok(_) => {}
             // Reconfigure the surface if it's lost or outdated
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => self.reconfigure(),
