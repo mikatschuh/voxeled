@@ -32,6 +32,7 @@ where
     depth_texture: Texture,
     render_target_texture: Texture,
     render_target_bind_group: wgpu::BindGroup,
+    render_target_bind_group_layout: wgpu::BindGroupLayout,
 
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
@@ -246,7 +247,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                         resource: wgpu::BindingResource::Sampler(&render_target.sampler),
                     },
                 ],
-                label: Some("diffuse_bind_group"),
+                label: Some("render target bind group"),
             }),
             render_target_texture: render_target,
             window: window::Window::from(window, true),
@@ -364,6 +365,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     cache: None,
                 },
             ),
+            render_target_bind_group_layout,
             device,
             config,
             camera,
@@ -382,6 +384,27 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             self.depth_texture =
                 texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
             self.surface.configure(&self.device, &self.config);
+            self.render_target_texture =
+                texture::Texture::create_rendering_target(&self.device, &self.config);
+            self.render_target_bind_group =
+                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &self.render_target_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                &self.render_target_texture.view,
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(
+                                &self.render_target_texture.sampler,
+                            ),
+                        },
+                    ],
+                    label: Some("render target bind group"),
+                });
         }
     }
     pub fn reconfigure(&mut self) {
@@ -394,7 +417,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 .controller()
                 .rotate_around_angle(glam::Vec3::new(
                     -keys.mouse_motion.x as f32,
-                    keys.mouse_motion.y as f32,
+                    -keys.mouse_motion.y as f32,
                     keys.e.state - keys.q.state,
                 ));
             if keys.mouse_wheel.y != 0.0 {
@@ -403,7 +426,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             self.camera.controller().update(
                 glam::Vec3::new(
                     keys.a.state - keys.d.state,
-                    keys.shift.state - keys.space.state,
+                    keys.space.state - keys.shift.state,
                     keys.w.state - keys.s.state,
                 )
                 .normalize_or_zero(),

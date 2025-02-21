@@ -78,7 +78,6 @@ fn main() {
                                 true => drawer.window.set_focus(true),
                                 false => drawer.window.set_focus(false),
                             },
-
                             WindowEvent::CloseRequested => control_flow.exit(),
                             WindowEvent::Resized(physical_size) => {
                                 drawer.resize(physical_size);
