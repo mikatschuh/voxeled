@@ -25,10 +25,70 @@ var prev_img: texture_2d<f32>;
 @group(0) @binding(1)
 var prev_img_s: sampler;
 
+// Helpers for FXAA
+fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
+    // Convert RGB to brightness using standard coefficients
+    return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+}
+
+// Simplified FXAA implementation for voxel renderer
+
 @fragment
 fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
-    // Sample the color at the current UV coordinate
-    let color = textureSample(prev_img, prev_img_s, in.tex_coords);
+    // FXAA implementation
+    var color = textureSample(prev_img, prev_img_s, in.tex_coords);
+    let pixelSize = 1.0 / vec2<f32>(textureDimensions(prev_img, 0));
+    
+    // Sample neighboring pixels
+    let center = color.rgb;
+    let lumaCenter = rgb_to_luma(center);
+    
+    let lumaUp = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(0.0, -pixelSize.y)).rgb);
+    let lumaDown = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(0.0, pixelSize.y)).rgb);
+    let lumaLeft = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(-pixelSize.x, 0.0)).rgb);
+    let lumaRight = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(pixelSize.x, 0.0)).rgb);
+    
+    // Detect local contrast - is there an edge here?
+    let lumaMin = min(lumaCenter, min(min(lumaUp, lumaDown), min(lumaLeft, lumaRight)));
+    let lumaMax = max(lumaCenter, max(max(lumaUp, lumaDown), max(lumaLeft, lumaRight)));
+    let lumaRange = lumaMax - lumaMin;
+    
+    // Early exit if not an edge
+    if (lumaRange < max(0.0312, lumaMax * 0.125)) {
+        // Skip anti-aliasing
+    } else {
+        // Find the direction of the edge
+        let horzLuma = lumaLeft + lumaRight;
+        let vertLuma = lumaUp + lumaDown;
+        
+        let isHorizontal = horzLuma > vertLuma;
+        
+        // Get additional samples to refine edge detection
+        // WGSL nutzt select() statt ternärer Operatoren
+        let samplingDirection = vec2<f32>(
+            select(1.0, 0.0, isHorizontal), // x = 0 wenn horizontal, sonst 1
+            select(0.0, 1.0, isHorizontal)  // y = 1 wenn horizontal, sonst 0
+        );
+        
+        // Sampling step distance depends on the edge length
+        let stepLength = 0.5;
+        let oppositeLuma1 = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + samplingDirection * pixelSize * stepLength).rgb);
+        let oppositeLuma2 = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords - samplingDirection * pixelSize * stepLength).rgb);
+        
+        // Blend between original and anti-aliased sample based on edge significance
+        let blendFactor = 0.6; // How strong the anti-aliasing effect is
+        let edgeStrength = abs(oppositeLuma1 + oppositeLuma2 - 2.0 * lumaCenter) / lumaRange;
+        
+        // Apply simple anti-aliasing - blend with neighbors based on edge strength
+        let sampleOffset = samplingDirection * pixelSize * blendFactor;
+        let sample1 = textureSample(prev_img, prev_img_s, in.tex_coords + sampleOffset).rgb;
+        let sample2 = textureSample(prev_img, prev_img_s, in.tex_coords - sampleOffset).rgb;
+        
+        let blendWeight = clamp(edgeStrength, 0.0, 0.5);
+        color = vec4<f32>(mix(center, (sample1 + sample2) * 0.5, blendWeight), color.a);
+    }
+    
+    // Now apply our CRT/retro effects to the anti-aliased image
     
     // Create a retro CRT-like effect with scan lines and vignette
     
@@ -41,8 +101,8 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let b = textureSample(prev_img, prev_img_s, in.tex_coords - vec2<f32>(0.005, 0.0)).b;
     
     // Create vignette effect (darker at the edges)
-    let center = vec2<f32>(0.5, 0.5);
-    let dist = distance(in.tex_coords, center);
+    let screenCenter = vec2<f32>(0.5, 0.5); // Mittelpunkt des Bildschirms für Vignette
+    let dist = distance(in.tex_coords, screenCenter);
     let vignette = smoothstep(0.5, 0.2, dist) * 0.85 + 0.15;
     
     // Enhance contrast slightly
