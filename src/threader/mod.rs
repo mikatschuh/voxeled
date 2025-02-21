@@ -1,4 +1,3 @@
-use crossbeam::atomic::AtomicCell;
 /* threading goals
 
 verschiedene Arten von Tasks:
@@ -15,11 +14,16 @@ Second Tasks:
 
     Werden ausgeführt sofern Zeit zu Verfügung steht.
 */
-use crossbeam::channel::{bounded, Receiver, Sender};
-use crossbeam::deque::Injector;
-
-use std::time::{Duration, Instant};
-use std::{sync::Arc, thread};
+use crossbeam::{
+    atomic::AtomicCell,
+    channel::{bounded, Receiver, Sender},
+    deque::Injector,
+};
+use std::{
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+};
 pub mod task;
 use task::Task;
 
