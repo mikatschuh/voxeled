@@ -35,18 +35,19 @@ fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
 
 @fragment
 fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
+    let pos = in.tex_coords;
     // FXAA implementation
-    var color = textureSample(prev_img, prev_img_s, in.tex_coords);
+    var color = textureSample(prev_img, prev_img_s, pos);
     let pixelSize = 1.0 / vec2<f32>(textureDimensions(prev_img, 0));
 
     // Sample neighboring pixels
     let center = color.rgb;
     let lumaCenter = rgb_to_luma(center);
 
-    let lumaUp = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(0.0, -pixelSize.y)).rgb);
-    let lumaDown = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(0.0, pixelSize.y)).rgb);
-    let lumaLeft = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(-pixelSize.x, 0.0)).rgb);
-    let lumaRight = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(pixelSize.x, 0.0)).rgb);
+    let lumaUp = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.0, -pixelSize.y)).rgb);
+    let lumaDown = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.0, pixelSize.y)).rgb);
+    let lumaLeft = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + vec2<f32>(-pixelSize.x, 0.0)).rgb);
+    let lumaRight = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + vec2<f32>(pixelSize.x, 0.0)).rgb);
 
     // Detect local contrast - is there an edge here?
     let lumaMin = min(lumaCenter, min(min(lumaUp, lumaDown), min(lumaLeft, lumaRight)));
@@ -72,8 +73,8 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
 
         // Sampling step distance depends on the edge length
         let stepLength = 0.5;
-        let oppositeLuma1 = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords + samplingDirection * pixelSize * stepLength).rgb);
-        let oppositeLuma2 = rgb_to_luma(textureSample(prev_img, prev_img_s, in.tex_coords - samplingDirection * pixelSize * stepLength).rgb);
+        let oppositeLuma1 = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + samplingDirection * pixelSize * stepLength).rgb);
+        let oppositeLuma2 = rgb_to_luma(textureSample(prev_img, prev_img_s, pos - samplingDirection * pixelSize * stepLength).rgb);
 
         // Blend between original and anti-aliased sample based on edge significance
         let blendFactor = 0.6; // How strong the anti-aliasing effect is
@@ -93,16 +94,16 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     // Create a retro CRT-like effect with scan lines and vignette
 
     // Calculate scan lines (horizontal lines)
-    let scan_line = sin(in.tex_coords.y * 120.0) * 0.08 + 0.92;
+    let scan_line = sin(pos.y * 120.0) * 0.08 + 0.92;
 
     // Add some color distortion/aberration (RGB shift)
-    let r = textureSample(prev_img, prev_img_s, in.tex_coords + vec2<f32>(0.004, 0.0)).r;
+    let r = textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.004, 0.0)).r;
     let g = color.g;
-    let b = textureSample(prev_img, prev_img_s, in.tex_coords - vec2<f32>(0.004, 0.0)).b;
+    let b = textureSample(prev_img, prev_img_s, pos - vec2<f32>(0.004, 0.0)).b;
 
     // Create vignette effect (darker at the edges)
     let screenCenter = vec2<f32>(0.5, 0.5); // Mittelpunkt des Bildschirms für Vignette
-    let dist = distance(in.tex_coords, screenCenter);
+    let dist = distance(pos, screenCenter);
     let vignette = smoothstep(0.5, 0.2, dist - 0.25) * 0.85 + 0.15;
 
     // Enhance contrast slightly
