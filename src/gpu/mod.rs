@@ -413,6 +413,9 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, keys: &crate::input::KeyMap) {
         if self.window.focused() {
+            if keys.space_double_tap {
+                println!("double tap")
+            }
             self.camera
                 .controller()
                 .rotate_around_angle(glam::Vec3::new(

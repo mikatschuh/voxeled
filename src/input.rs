@@ -5,7 +5,6 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::WindowId,
 };
-
 /// Enthält den Zustand einer Taste.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum InputState {
@@ -119,6 +118,9 @@ pub struct InputEventFilter {
 
     mouse_motion: PhysicalPosition<f64>,
     mouse_wheel: PhysicalPosition<f32>,
+
+    /// Two space clicks in 40 ms.
+    space_double_tap: Vec<Instant>,
 }
 impl InputEventFilter {
     /// Erstellt einen neuen Input Event Filter.
@@ -142,6 +144,8 @@ impl InputEventFilter {
 
             mouse_motion: PhysicalPosition::new(0.0, 0.0),
             mouse_wheel: PhysicalPosition::new(0.0, 0.0),
+
+            space_double_tap: vec![],
         }
     }
     /// Funktion die true zurückgibt wenn das Event ein Input war der abgegriffen wurde.
@@ -177,6 +181,7 @@ impl InputEventFilter {
                     .for_each(|input| input.pressed_in_this_frame = false);
                     self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
                     self.mouse_wheel = PhysicalPosition::new(0.0, 0.0);
+                    self.space_double_tap = vec![];
                     return false;
                 }
                 WindowEvent::MouseWheel { delta, .. } => match delta {
@@ -207,7 +212,11 @@ impl InputEventFilter {
 
                         PhysicalKey::Code(KeyCode::KeyP) => pressed_key = &mut self.p,
 
-                        PhysicalKey::Code(KeyCode::Space) => pressed_key = &mut self.space,
+                        PhysicalKey::Code(KeyCode::Space) => {
+                            self.space_double_tap_cleanup();
+                            self.space_double_tap.push(Instant::now());
+                            pressed_key = &mut self.space
+                        }
                         PhysicalKey::Code(KeyCode::ShiftLeft) => pressed_key = &mut self.shift,
                         PhysicalKey::Code(KeyCode::Escape) => pressed_key = &mut self.esc,
 
@@ -309,10 +318,18 @@ impl InputEventFilter {
         );
         key_map.mouse_motion = self.mouse_motion;
         key_map.mouse_wheel = self.mouse_wheel;
-
+        self.space_double_tap_cleanup();
+        key_map.space_double_tap = self.space_double_tap.len() == 2;
         self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
         self.mouse_wheel = PhysicalPosition::new(0.0, 0.0);
         key_map
+    }
+    fn space_double_tap_cleanup(&mut self) {
+        for i in 0..self.space_double_tap.len() {
+            if self.space_double_tap[i].elapsed().as_nanos() > 40_000_000 {
+                self.space_double_tap.remove(i);
+            }
+        }
     }
 }
 /// Eine Struktur die eine Karte aller relevanten Tasten und ihren Zustand speichert.
@@ -334,6 +351,8 @@ pub struct KeyMap {
 
     pub mouse_motion: PhysicalPosition<f64>,
     pub mouse_wheel: PhysicalPosition<f32>,
+
+    pub space_double_tap: bool,
 }
 impl Default for KeyMap {
     fn default() -> Self {
@@ -386,6 +405,8 @@ impl Default for KeyMap {
 
             mouse_motion: PhysicalPosition::new(0.0, 0.0),
             mouse_wheel: PhysicalPosition::new(0.0, 0.0),
+
+            space_double_tap: false,
         }
     }
 }
