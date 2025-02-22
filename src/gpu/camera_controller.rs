@@ -15,6 +15,8 @@ pub trait CameraController {
 
     fn update_acc(&mut self, change: f32);
 
+    fn toggle_flying(&mut self);
+
     fn pos(&self) -> Vec3;
     fn rot(&self) -> Quat;
     fn dir(&self) -> Vec3;
@@ -26,11 +28,14 @@ pub struct SmoothController {
     angle: Vec3,
     vel: Vec3,
     acc: f32,
+    flying: bool,
     delta_time: DeltaTime,
 }
 impl SmoothController {
     const FRICTION: f32 = 1.66666667;
     const STANDART_ACC: f32 = 0.01;
+    const GRAVITY: f32 = 0.05;
+    const MAX_SPEED: f32 = 1000.0;
 }
 impl CameraController for SmoothController {
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
@@ -48,6 +53,7 @@ impl CameraController for SmoothController {
             angle: Vec3::from(rot.to_euler(glam::EulerRot::YXZ)),
             vel: Vec3::ZERO,
             acc: Self::STANDART_ACC,
+            flying: true,
             delta_time,
         }
     }
@@ -64,9 +70,14 @@ impl CameraController for SmoothController {
     }
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
     fn update(&mut self, vector: Vec3) {
-        self.vel = (self.vel + self.rot * (vector * self.acc * self.delta_time.get())).clamp(
-            Vec3::new(-100.0, -100.0, -100.0),
-            Vec3::new(100.0, 100.0, 100.0),
+        let vector = vector * self.acc;
+        self.vel = (self.vel
+            + (self.rot * vector
+                + Vec3::new(0.0, if self.flying { 0.0 } else { Self::GRAVITY }, 0.0))
+                * self.delta_time.get())
+        .clamp(
+            Vec3::new(-Self::MAX_SPEED, -Self::MAX_SPEED, -Self::MAX_SPEED),
+            Vec3::new(Self::MAX_SPEED, Self::MAX_SPEED, Self::MAX_SPEED),
         ) * (Self::FRICTION / self.delta_time.get());
 
         self.pos += self.vel * self.delta_time.get();
@@ -80,6 +91,9 @@ impl CameraController for SmoothController {
                 1.0 / change.abs()
             })
         .clamp(Self::STANDART_ACC / 50.0, Self::STANDART_ACC * 50.0);
+    }
+    fn toggle_flying(&mut self) {
+        self.flying = !self.flying
     }
     fn pos(&self) -> Vec3 {
         self.pos

@@ -42,7 +42,7 @@ where
     render_pipeline: wgpu::RenderPipeline,
     post_processing_pipeline: wgpu::RenderPipeline,
 
-    camera: &'a mut C,
+    pub camera: &'a mut C,
     camera_buffer: wgpu::Buffer,
 
     // Asset things:
@@ -414,7 +414,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
     pub fn update(&mut self, keys: &crate::input::KeyMap) {
         if self.window.focused() {
             if keys.space_double_tap {
-                println!("double tap")
+                self.camera.controller().toggle_flying();
             }
             self.camera
                 .controller()
@@ -444,9 +444,6 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
         );
     }
-    pub fn camera(&mut self) -> &mut C {
-        self.camera
-    }
     pub fn update_mesh(&mut self, mesh: &Mesh) {
         self.num_indices = mesh.indices.len() as u32;
         self.vertex_buffer = self
@@ -464,8 +461,11 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 usage: wgpu::BufferUsages::INDEX,
             });
     }
+    /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
+    /// # Errors
+    ///
     pub fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
-        match self.try_draw_ChatGPT() {
+        match self.try_draw() {
             Ok(_) => {}
             // Reconfigure the surface if it's lost or outdated
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => self.reconfigure(),
@@ -481,67 +481,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             }
         }
     }
-
-    /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
-    /// # Errors
-    ///
-    pub fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
-        let output_view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[
-                    // This is what @location(0) in the fragment shader targets
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: &output_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.0,
-                                g: 0.0,
-                                b: 0.0,
-                                a: 1.0,
-                            }),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    }),
-                ],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            render_pass.set_pipeline(&self.render_pipeline);
-
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-        }
-
-        // submit will accept anything that implements IntoIter
-        self.queue.submit(std::iter::once(encoder.finish()));
-        output.present(); // sending to gpu
-        Ok(())
-    }
-    pub fn try_draw_ChatGPT(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture

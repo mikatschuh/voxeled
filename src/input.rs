@@ -213,8 +213,10 @@ impl InputEventFilter {
                         PhysicalKey::Code(KeyCode::KeyP) => pressed_key = &mut self.p,
 
                         PhysicalKey::Code(KeyCode::Space) => {
-                            self.space_double_tap_cleanup();
-                            self.space_double_tap.push(Instant::now());
+                            if !self.space.pressed_in_this_frame {
+                                self.space_double_tap_cleanup();
+                                self.space_double_tap.push(Instant::now());
+                            }
                             pressed_key = &mut self.space
                         }
                         PhysicalKey::Code(KeyCode::ShiftLeft) => pressed_key = &mut self.shift,
@@ -319,16 +321,24 @@ impl InputEventFilter {
         key_map.mouse_motion = self.mouse_motion;
         key_map.mouse_wheel = self.mouse_wheel;
         self.space_double_tap_cleanup();
-        key_map.space_double_tap = self.space_double_tap.len() == 2;
+        if self.space_double_tap.len() >= 2 {
+            key_map.space_double_tap = true;
+            self.space_double_tap = vec![]
+        }
         self.mouse_motion = PhysicalPosition::new(0.0, 0.0);
         self.mouse_wheel = PhysicalPosition::new(0.0, 0.0);
+
         key_map
     }
     fn space_double_tap_cleanup(&mut self) {
-        for i in 0..self.space_double_tap.len() {
-            if self.space_double_tap[i].elapsed().as_nanos() > 40_000_000 {
+        let mut len = self.space_double_tap.len();
+        let mut i = 0;
+        while i < len {
+            if self.space_double_tap[i].elapsed().as_nanos() > 400_000_000 {
                 self.space_double_tap.remove(i);
+                len -= 1
             }
+            i += 1
         }
     }
 }

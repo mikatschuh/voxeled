@@ -94,8 +94,8 @@ fn main() {
                                         drawer.window.flip_focus()
                                     }
 
-                                    let cam_pos = drawer.camera().controller().pos();
-                                    let cam_dir = drawer.camera().controller().dir();
+                                    let cam_pos = drawer.camera.controller().pos();
+                                    let cam_dir = drawer.camera.controller().dir();
                                     drawer.update(&key_map);
 
                                     let now = Instant::now();
@@ -109,10 +109,7 @@ fn main() {
                                         elapsed_time,
                                         &mut threadpool,
                                     ));
-                                    println!(
-                                        "time it took to build mesh in total: {:#?}",
-                                        now.elapsed()
-                                    );
+                                    // println!("time it took to build mesh in total: {:#?}", now.elapsed());
                                     drawer.draw(control_flow);
                                 }
                                 drawer.window.request_redraw(); // This tells winit that we want another frame after this one

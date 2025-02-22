@@ -51,14 +51,12 @@ impl Server {
                         "time it took to build the chunk mesh at {:?}: {:#?}",
                         chunk_coord, time
                     );
-                    println!(
-                        "{}",
-                        if time.as_micros() < 1000 {
-                            msg.green()
-                        } else {
-                            msg.red()
-                        }
-                    );
+                    let msg = if time.as_micros() < 1000 {
+                        msg.green()
+                    } else {
+                        msg.red()
+                    };
+                    // println!("{}", msg);
                 });
             }
         });
@@ -108,7 +106,6 @@ impl Server {
                     }
                 }
             } else {
-                println!("{}: submitting task", chunk_coord);
                 let chunk_coord = chunk_coord.clone();
 
                 let noise = noise.clone();
@@ -128,34 +125,28 @@ impl Server {
                         "time it took to build the chunk mesh at {:?}: {:#?}",
                         chunk_coord, time
                     );
-                    println!(
-                        "{}",
-                        if time.as_micros() < 1000 {
-                            msg.green()
-                        } else {
-                            msg.red()
-                        }
-                    );
+                    let msg = if time.as_micros() < 1000 {
+                        msg.green()
+                    } else {
+                        msg.red()
+                    };
+                    // println!("{}", msg);
                 });
             }
         });
         points.iter().for_each(|chunk_coord| {
             if let Some(lazy_mesh) = self.meshes.get_mut(chunk_coord) {
                 if let LazyMesh::Recv(recv) = lazy_mesh {
-                    println!("{}: waiting", chunk_coord);
+                    // println!("{}: waiting", chunk_coord);
                     if let Ok(chunk_mesh) = recv.try_recv() {
-                        println!("{}: got mesh", chunk_coord);
+                        // println!("{}: got mesh", chunk_coord);
                         mesh += *chunk_mesh.clone();
                         *lazy_mesh = LazyMesh::Mesh(chunk_mesh)
                     }
                 }
             }
         });
-        println!(
-            "frame done, size of mesh: {} kB",
-            (mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>() + mesh.indices.len() * 4)
-                / 1000
-        );
+        // println!("frame done, size of mesh: {} kB", (mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>() + mesh.indices.len() * 4) / 1000);
         mesh
     }
 }
