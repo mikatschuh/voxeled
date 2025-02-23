@@ -6,7 +6,7 @@ pub(super) fn make_shader() -> wgpu::ShaderModuleDescriptor<'static> {
     wgpu::ShaderModuleDescriptor {
         label: Some("main"),
         source: wgpu::ShaderSource::Wgsl(
-            crate::gpu::pipeline::collect_shader(std::path::PathBuf::from("./src")).into(),
+            crate::gpu::shader::collect_shader(std::path::PathBuf::from("./src")).into(),
         ),
     }
 }

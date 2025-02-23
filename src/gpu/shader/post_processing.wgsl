@@ -25,14 +25,23 @@ var prev_img: texture_2d<f32>;
 @group(0) @binding(1)
 var prev_img_s: sampler;
 
+@group(1) @binding(0)
+var depth_img: texture_depth_2d;
+@group(1) @binding(1)
+var depth_img_s: sampler;
+
 // Helpers for FXAA
 fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
     // Convert RGB to brightness using standard coefficients
     return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
 }
 
-// Simplified FXAA implementation for voxel renderer
+fn linearize_depth(depth: f32, near: f32, far: f32) -> f32 {
+    let z = depth * 2.0 - 1.0; // Depth von [0,1] nach [-1,1] für NDC transformieren
+    return (far + near - z * (far - near)) / (near * far); // Invertierte Berechnung
+}
 
+// Simplified FXAA implementation for voxel renderer
 @fragment
 fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let pos = in.tex_coords;
@@ -121,5 +130,5 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     // Add a subtle blue-green tint to give it a retro computing feel
     let tint = vec3<f32>(0.95, 1.05, 1.05);
 
-    return vec4<f32>(final_color * tint, color.a);
+    return vec4<f32>(final_color * tint, 1.0);
 }

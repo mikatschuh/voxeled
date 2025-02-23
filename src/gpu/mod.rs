@@ -2,7 +2,7 @@ pub mod camera;
 pub mod camera_controller;
 // pub mod exotic_cameras;
 pub mod mesh;
-mod pipeline;
+mod shader;
 mod texture;
 pub mod window;
 
@@ -29,7 +29,11 @@ where
     device: wgpu::Device,
     queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
+
     depth_texture: Texture,
+    depth_texture_bind_group: wgpu::BindGroup,
+    depth_texture_bind_group_layout: wgpu::BindGroupLayout,
+
     render_target_texture: Texture,
     render_target_bind_group: wgpu::BindGroup,
     render_target_bind_group_layout: wgpu::BindGroupLayout,
@@ -172,7 +176,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                         binding: 0,
                         visibility: wgpu::ShaderStages::FRAGMENT, // Im Fragment-Shader nutzbar
                         ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true }, // Float-Textur (z. B. Depth)
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
                             view_dimension: wgpu::TextureViewDimension::D2, // 2D-Textur
                             multisampled: false,
                         },
@@ -187,7 +191,44 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     },
                 ],
             });
-        let shader = device.create_shader_module(crate::gpu::pipeline::make_shader());
+        let depth_texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Depth Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+        let depth_texture = Texture::create_depth_texture(&device, &config);
+        let depth_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Depth Bind Group"),
+            layout: &depth_texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&depth_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&depth_texture.sampler),
+                },
+            ],
+        });
+        let shader = device.create_shader_module(crate::gpu::shader::make_shader());
 
         let mesh = Mesh::default();
 
@@ -253,7 +294,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             window: window::Window::from(window, true),
             surface,
             queue,
-            depth_texture: Texture::create_depth_texture(&device, &config, "depth_texture"),
+            depth_texture,
+            depth_texture_bind_group,
             render_pipeline: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Render Pipeline"),
                 layout: Some(
@@ -297,7 +339,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
                     front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: None, // Some(wgpu::Face::Back),
+                    cull_mode: Some(wgpu::Face::Front),
                     // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                     polygon_mode: wgpu::PolygonMode::Fill,
                     // Requires Features::DEPTH_CLIP_CONTROL
@@ -326,7 +368,10 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     layout: Some(
                         &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                             label: Some("Pipeline Layout"),
-                            bind_group_layouts: &[&render_target_bind_group_layout], // Bind Group für die Textur
+                            bind_group_layouts: &[
+                                &render_target_bind_group_layout,
+                                &depth_texture_bind_group_layout,
+                            ], // Bind Group für die Textur
                             push_constant_ranges: &[],
                         }),
                     ),
@@ -365,6 +410,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     cache: None,
                 },
             ),
+            depth_texture_bind_group_layout,
             render_target_bind_group_layout,
             device,
             config,
@@ -381,9 +427,23 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             self.window.resize(new_size);
             self.config.width = new_size.width;
             self.config.height = new_size.height;
-            self.depth_texture =
-                texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
-            self.surface.configure(&self.device, &self.config);
+
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config);
+            self.depth_texture_bind_group =
+                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Depth Bind Group"),
+                    layout: &self.depth_texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&self.depth_texture.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&self.depth_texture.sampler),
+                        },
+                    ],
+                });
             self.render_target_texture =
                 texture::Texture::create_rendering_target(&self.device, &self.config);
             self.render_target_bind_group =
@@ -405,6 +465,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     ],
                     label: Some("render target bind group"),
                 });
+            self.surface.configure(&self.device, &self.config);
         }
     }
     pub fn reconfigure(&mut self) {
@@ -554,6 +615,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
 
             post_process_pass.set_pipeline(&self.post_processing_pipeline);
             post_process_pass.set_bind_group(0, &self.render_target_bind_group, &[]); // Die Szene als Textur-Input
+            post_process_pass.set_bind_group(1, &self.depth_texture_bind_group, &[]);
             post_process_pass.draw(0..6, 0..1); // Fullscreen-Quad mit 6 Vertices
         }
 
