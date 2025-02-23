@@ -64,9 +64,7 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let lumaRange = lumaMax - lumaMin;
 
     // Early exit if not an edge
-    if (lumaRange < max(0.0312, lumaMax * 0.125)) {
-        // Skip anti-aliasing
-    } else {
+    if !(lumaRange < max(0.0312, lumaMax * 0.125)) {
         // Find the direction of the edge
         let horzLuma = lumaLeft + lumaRight;
         let vertLuma = lumaUp + lumaDown;
