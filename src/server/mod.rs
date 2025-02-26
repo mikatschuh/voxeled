@@ -1,69 +1,67 @@
 pub mod chunk;
 pub mod voxel;
-use crate::random::AnimatedNoise;
-use chunk::Chunk;
+
+use crate::{gpu::mesh::Mesh, random::AnimatedNoise, threader::lazy::Lazy, threader::Threadpool};
+use chunk::{map_visible, Chunk};
 use colored::Colorize;
-use crossbeam::channel::{bounded, Receiver};
 use glam::IVec3;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Instant;
 
-enum LazyMesh {
-    Mesh(Box<Mesh>),
-    Recv(Receiver<Box<Mesh>>),
-}
 const PRELOAD_DISTANCE: usize = 10;
 
 pub struct Server {
-    chunks: Arc<Mutex<Chunks>>,
-    meshes: HashMap<IVec3, LazyMesh>,
+    chunks: Arc<Chunks>,
+    meshes: HashMap<IVec3, Lazy<Mesh>>,
     was_initiated: bool,
 }
 impl Server {
     pub fn new() -> Self {
         Self {
-            chunks: Arc::new(Mutex::new(Chunks::default())),
+            chunks: Arc::new(Chunks::new()),
             meshes: HashMap::new(),
             was_initiated: false,
         }
     }
     pub fn init(&mut self, noise: Arc<AnimatedNoise>, threadpool: &mut Threadpool) {
         for_point_in_square(IVec3::ZERO, 10, |chunk_coord| {
-            if let Some(..) = self.meshes.get(&chunk_coord) {
-            } else {
-                let chunk_coord = chunk_coord.clone();
+            if let Some(..) = self.meshes.get(&chunk_coord) {}
+            let chunk_coord = chunk_coord.clone();
 
-                let noise = noise.clone();
+            let noise = noise.clone();
+            let chunks = self.chunks.clone();
 
-                let (s, r) = bounded(1);
-                self.meshes.insert(chunk_coord, LazyMesh::Recv(r));
+            let (lazy_mesh, s) = Lazy::open();
+            self.meshes.insert(chunk_coord, lazy_mesh);
 
-                threadpool.dynamic_priority(move || {
-                    let now = Instant::now();
-                    let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
-                        chunk_coord,
-                        Chunk::from_perlin_noise(chunk_coord, &noise, 0.0).occlusion_map,
-                    ));
-                    let _ = s.send(result);
-                    let time = now.elapsed();
-                    let msg = format!(
-                        "time it took to build the chunk mesh at {:?}: {:#?}",
-                        chunk_coord, time
-                    );
-                    let msg = if time.as_micros() < 1000 {
-                        msg.green()
-                    } else {
-                        msg.red()
-                    };
-                    // println!("{}", msg);
-                });
-            }
+            threadpool.dynamic_priority(move || {
+                let now = Instant::now();
+                let chunk = Chunk::from_landscape(chunk_coord, &noise, 0.0, &chunks);
+                chunks.add(chunk_coord, chunk.clone());
+                let result = Box::new(chunk::generate_mesh_without_cam_occ(
+                    chunk_coord,
+                    chunk.occlusion_map,
+                ));
+
+                let _ = s.send(result);
+                let time = now.elapsed();
+                let msg = format!(
+                    "time it took to build the chunk mesh at {:?}: {:#?}",
+                    chunk_coord, time
+                );
+                let msg = if time.as_micros() < 1000 {
+                    msg.green()
+                } else {
+                    msg.red()
+                };
+                println!("{}", msg);
+            });
         });
         self.was_initiated = true;
         println!(
             "chunks pre-build, size of world: {} kB",
-            self.chunks.lock().unwrap().chunks.len() * size_of::<Chunk>() / 1000
+            self.chunks.0.read().unwrap().len() * size_of::<Chunk>() / 1000
         );
     }
     pub fn get_mesh(
@@ -80,10 +78,7 @@ impl Server {
         if !self.was_initiated {
             self.init(noise.clone(), threadpool)
         }
-        let mut mesh = Mesh {
-            vertices: Vec::with_capacity(2457600),
-            indices: Vec::with_capacity(18432000),
-        };
+        let mut mesh = Mesh::with_capacity(32_000);
         let cam_chunk_pos = cam_pos / 32.0;
 
         let points = every_chunk_in_frustum(
@@ -94,87 +89,78 @@ impl Server {
             render_distance,
         );
         points.iter().for_each(|chunk_coord| {
+            let occlusion_map;
             if let Some(lazy_mesh) = self.meshes.get_mut(chunk_coord) {
-                match lazy_mesh {
-                    LazyMesh::Mesh(chunk_mesh) => mesh += *chunk_mesh.clone(),
-
-                    LazyMesh::Recv(recv) => {
-                        if let Ok(chunk_mesh) = recv.try_recv() {
-                            mesh += *chunk_mesh.clone();
-                            *lazy_mesh = LazyMesh::Mesh(chunk_mesh)
-                        }
+                if let Some(chunk_mesh) = lazy_mesh.try_get() {
+                    let chunk = self.chunks.get(*chunk_coord).unwrap();
+                    let new_occlusion =
+                        map_visible(&chunk.read().unwrap().voxels, *chunk_coord, &self.chunks);
+                    {
+                        chunk.write().unwrap().occlusion_map = new_occlusion;
                     }
+                    occlusion_map = new_occlusion
                 }
+                return;
             } else {
-                let chunk_coord = chunk_coord.clone();
-
-                let noise = noise.clone();
-
-                let (s, r) = bounded(1);
-                self.meshes.insert(chunk_coord, LazyMesh::Recv(r));
-
-                threadpool.dynamic_priority(move || {
-                    let now = Instant::now();
-                    let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
-                        chunk_coord,
-                        Chunk::from_perlin_noise(chunk_coord, &noise, 0.0).occlusion_map,
-                    ));
-                    let _ = s.send(result);
-                    let time = now.elapsed();
-                    let msg = format!(
-                        "time it took to build the chunk mesh at {:?}: {:#?}",
-                        chunk_coord, time
-                    );
-                    let msg = if time.as_micros() < 1000 {
-                        msg.green()
-                    } else {
-                        msg.red()
-                    };
-                    // println!("{}", msg);
-                });
+                let chunk = Chunk::from_landscape(*chunk_coord, &noise, 0.0, &self.chunks);
+                self.chunks.add(*chunk_coord, chunk.clone());
+                occlusion_map = chunk.occlusion_map
             }
+            let chunk_coord = chunk_coord.clone();
+
+            let noise = noise.clone();
+
+            let chunks = self.chunks.clone();
+
+            let (lazy_mesh, s) = Lazy::open();
+            self.meshes.insert(chunk_coord, lazy_mesh);
+
+            threadpool.dynamic_priority(move || {
+                let now = Instant::now();
+                let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
+                    chunk_coord,
+                    occlusion_map,
+                ));
+                let _ = s.send(result);
+                let time = now.elapsed();
+                let msg = format!(
+                    "time it took to build the chunk mesh at {:?}: {:#?}",
+                    chunk_coord, time
+                );
+                let msg = if time.as_micros() < 1000 {
+                    msg.green()
+                } else {
+                    msg.red()
+                };
+                println!("{}", msg);
+            });
         });
         points.iter().for_each(|chunk_coord| {
-            if let Some(lazy_mesh) = self.meshes.get_mut(chunk_coord) {
-                if let LazyMesh::Recv(recv) = lazy_mesh {
-                    // println!("{}: waiting", chunk_coord);
-                    if let Ok(chunk_mesh) = recv.try_recv() {
-                        // println!("{}: got mesh", chunk_coord);
-                        mesh += *chunk_mesh.clone();
-                        *lazy_mesh = LazyMesh::Mesh(chunk_mesh)
-                    }
-                }
+            let lazy_mesh = self.meshes.get_mut(chunk_coord).unwrap();
+            if let Some(chunk_mesh) = lazy_mesh.try_get() {
+                mesh += chunk_mesh.clone();
             }
         });
         // println!("frame done, size of mesh: {} kB", (mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>() + mesh.indices.len() * 4) / 1000);
         mesh
     }
 }
-
 #[derive(Debug)]
-pub struct Chunks {
-    chunks: HashMap<IVec3, Mutex<Chunk>>,
-}
-impl Default for Chunks {
-    fn default() -> Self {
-        Self {
-            chunks: HashMap::new(),
-        }
-    }
-}
-
-use crate::gpu::mesh::Mesh;
-use crate::threader::Threadpool;
+pub struct Chunks(RwLock<HashMap<IVec3, Arc<RwLock<Chunk>>>>);
 impl Chunks {
-    pub fn get<'a, F>(&'a mut self, pos: IVec3, mut gen: F) -> MutexGuard<'a, Chunk>
-    where
-        F: FnMut(IVec3) -> Chunk,
-    {
-        self.chunks
-            .entry(pos)
-            .or_insert_with(|| Mutex::new(gen(pos)))
-            .lock()
+    fn new() -> Self {
+        Self(RwLock::new(HashMap::new()))
+    }
+    pub fn get(&self, pos: IVec3) -> Option<Arc<RwLock<Chunk>>> {
+        let chunks_guard = self.0.read().unwrap();
+
+        return chunks_guard.get(&pos).cloned();
+    }
+    pub fn add(&self, pos: IVec3, chunk: Chunk) {
+        self.0
+            .write()
             .unwrap()
+            .insert(pos, Arc::new(RwLock::new(chunk)));
     }
 }
 

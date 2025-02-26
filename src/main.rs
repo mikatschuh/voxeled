@@ -34,7 +34,7 @@ fn main() {
 
     let mut delta_time = time::DeltaTimeMeter::now();
     let mut camera: Camera<SmoothController> = gpu::camera::Camera::new(
-        Vec3::new(0.0, 40.0, 0.0),
+        Vec3::new(0.0, 50.0, 0.0),
         Vec3::new(1.0, 1.0, 0.0),
         delta_time.new_reader(),
     );
@@ -53,7 +53,7 @@ fn main() {
     let noise = Arc::new(random::AnimatedNoise::new(
         seed, // Seed für Reproduzierbarkeit
         1.0,  // time_scale - kleinere Werte = langsamere Animation
-        0.01, // space_scale - kleinere Werte = größere Strukturen
+        0.1,  // space_scale - kleinere Werte = größere Strukturen
     ));
     println!("world seed: {}", seed);
     let mut world = Server::new();
@@ -104,7 +104,7 @@ fn main() {
                                         cam_dir,
                                         Camera::<SmoothController>::FOV,
                                         drawer.window.aspect_ratio,
-                                        24,
+                                        2,
                                         noise.clone(),
                                         elapsed_time,
                                         &mut threadpool,

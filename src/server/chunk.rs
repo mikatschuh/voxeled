@@ -1,3 +1,4 @@
+use super::Chunks;
 use std::f64::consts::FRAC_PI_2;
 
 use super::voxel::VoxelType;
@@ -27,7 +28,7 @@ impl Chunk {
     const NUM_OF_SOLID_BLOCKS: usize = 5;
     const NUM_OF_NON_SOLID_BLOCKS: usize = 5;
 
-    pub fn from_white_noise(pos: IVec3) -> Self {
+    pub fn from_white_noise(pos: IVec3, chunks: &Chunks) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for plane in voxels.iter_mut() {
             for row in plane.iter_mut() {
@@ -39,11 +40,11 @@ impl Chunk {
         Self {
             pos,
             voxels,
-            occlusion_map: map_visible(&voxels, pos),
+            occlusion_map: map_visible(&voxels, pos, chunks),
             entities: Vec::new(),
         }
     }
-    pub fn from_perlin_noise(pos: IVec3, noise: &AnimatedNoise, time: f64) -> Self {
+    pub fn from_rain_drops(pos: IVec3, noise: &AnimatedNoise, time: f64, chunks: &Chunks) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         let mut empty = true;
         for (x, plane) in voxels.iter_mut().enumerate() {
@@ -71,13 +72,47 @@ impl Chunk {
             occlusion_map: if empty {
                 [ChunkFaces([[0; 32]; 32]); 6]
             } else {
-                map_visible(&voxels, pos)
+                map_visible(&voxels, pos, chunks)
+            },
+            entities: Vec::new(),
+        }
+    }
+    pub fn from_landscape(pos: IVec3, noise: &AnimatedNoise, time: f64, chunks: &Chunks) -> Self {
+        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
+        let mut empty = true;
+        for x in 0..32 {
+            for z in 0..32 {
+                let height = (noise.get_octaves(
+                    (x as i32 + pos.x * 32) as f64,
+                    0.0,
+                    (z as i32 + pos.z * 32) as f64,
+                    time,
+                    5,
+                ));
+                for y in 0..32 {
+                    voxels[x][y][z] = if y as i32 + pos.y * 32 > (height * height * 100.0) as i32 {
+                        empty = false;
+                        VoxelType::Solid
+                    } else {
+                        VoxelType::Air
+                    }
+                }
+            }
+        }
+
+        Self {
+            pos,
+            voxels,
+            occlusion_map: if empty {
+                [ChunkFaces([[0; 32]; 32]); 6]
+            } else {
+                map_visible(&voxels, pos, chunks)
             },
             entities: Vec::new(),
         }
     }
 
-    pub fn from_pyramide(pos: IVec3, dir: Vec3) -> Self {
+    pub fn from_pyramide(pos: IVec3, dir: Vec3, chunks: &Chunks) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
 
         super::every_chunk_in_frustum(Vec3::new(16.0, 16.0, 16.0), dir, FRAC_PI_2 as f32, 1.0, 3)
@@ -89,34 +124,12 @@ impl Chunk {
         Self {
             pos,
             voxels,
-            occlusion_map: map_visible(&voxels, pos),
-            entities: Vec::new(),
-        }
-    }
-    pub fn from_sphere(pos: IVec3) -> Self {
-        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-
-        super::for_every_sphere_point(pos + 16, 7, |coord| {
-            voxels[coord.x as usize][coord.y as usize][coord.z as usize] = VoxelType::Solid
-        });
-
-        Self {
-            pos,
-            voxels,
-            occlusion_map: map_visible(&voxels, pos),
+            occlusion_map: map_visible(&voxels, pos, chunks),
             entities: Vec::new(),
         }
     }
 }
-fn map_visible(voxels: &[[[VoxelType; 32]; 32]; 32], pos: IVec3) -> [ChunkFaces; 6] {
-    let mut faces = [ChunkFaces([[0; 32]; 32]); 6];
-    // 0 = -x
-    // 1 = +x
-    // 2 = -y
-    // 3 = +y
-    // 4 = -z
-    // 5 = +z
-
+fn get_axis_aligned_solid_maps(voxels: &[[[VoxelType; 32]; 32]; 32]) -> [[[u32; 32]; 32]; 3] {
     let mut x_aligned = [[0; 32]; 32];
     let mut y_aligned = [[0; 32]; 32];
     let mut z_aligned = [[0; 32]; 32];
@@ -135,21 +148,120 @@ fn map_visible(voxels: &[[[VoxelType; 32]; 32]; 32], pos: IVec3) -> [ChunkFaces;
             }
         }
     }
+    [x_aligned, y_aligned, z_aligned]
+}
+fn get_x_aligned_solid_map(voxels: &[[[VoxelType; 32]; 32]; 32]) -> [[u32; 32]; 32] {
+    let mut x_aligned = [[0; 32]; 32];
 
+    // data setup
+    for (x, plane) in voxels.iter().enumerate() {
+        for (y, row) in plane.iter().enumerate() {
+            for (z, voxel) in row.iter().enumerate() {
+                let voxel_is_solid_u32 = voxel.is_solid_u32();
+
+                if voxel_is_solid_u32 > 0 {
+                    x_aligned[y][z] |= voxel_is_solid_u32 >> x;
+                }
+            }
+        }
+    }
+    x_aligned
+}
+fn get_y_aligned_solid_map(voxels: &[[[VoxelType; 32]; 32]; 32]) -> [[u32; 32]; 32] {
+    let mut y_aligned = [[0; 32]; 32];
+
+    // data setup
+    for (x, plane) in voxels.iter().enumerate() {
+        for (y, row) in plane.iter().enumerate() {
+            for (z, voxel) in row.iter().enumerate() {
+                let voxel_is_solid_u32 = voxel.is_solid_u32();
+
+                if voxel_is_solid_u32 > 0 {
+                    y_aligned[z][x] |= voxel_is_solid_u32 >> y;
+                }
+            }
+        }
+    }
+    y_aligned
+}
+fn get_z_aligned_solid_map(voxels: &[[[VoxelType; 32]; 32]; 32]) -> [[u32; 32]; 32] {
+    let mut z_aligned = [[0; 32]; 32];
+
+    // data setup
+    for (x, plane) in voxels.iter().enumerate() {
+        for (y, row) in plane.iter().enumerate() {
+            for (z, voxel) in row.iter().enumerate() {
+                let voxel_is_solid_u32 = voxel.is_solid_u32();
+
+                if voxel_is_solid_u32 > 0 {
+                    z_aligned[x][y] |= voxel_is_solid_u32 >> z;
+                }
+            }
+        }
+    }
+    z_aligned
+}
+pub fn map_visible(
+    voxels: &[[[VoxelType; 32]; 32]; 32],
+    pos: IVec3,
+    chunks: &Chunks,
+) -> [ChunkFaces; 6] {
+    let mut faces = [ChunkFaces([[0; 32]; 32]); 6];
+    // 0 = -x
+    // 1 = +x
+    // 2 = -y
+    // 3 = +y
+    // 4 = -z
+    // 5 = +z
+
+    let [x_aligned, y_aligned, z_aligned] = get_axis_aligned_solid_maps(voxels);
+
+    fn get_x(chunks: &Chunks, pos: IVec3) -> [[u32; 32]; 32] {
+        if let Some(voxels) = chunks
+            .get(pos)
+            .and_then(|chunk| Some(chunk.read().unwrap().voxels))
+        {
+            get_x_aligned_solid_map(&voxels)
+        } else {
+            [[0; 32]; 32]
+        }
+    }
+    fn get_y(chunks: &Chunks, pos: IVec3) -> [[u32; 32]; 32] {
+        if let Some(voxels) = chunks
+            .get(pos)
+            .and_then(|chunk| Some(chunk.read().unwrap().voxels))
+        {
+            get_y_aligned_solid_map(&voxels)
+        } else {
+            [[0; 32]; 32]
+        }
+    }
+    fn get_z(chunks: &Chunks, pos: IVec3) -> [[u32; 32]; 32] {
+        if let Some(voxels) = chunks
+            .get(pos)
+            .and_then(|chunk| Some(chunk.read().unwrap().voxels))
+        {
+            get_z_aligned_solid_map(&voxels)
+        } else {
+            [[0; 32]; 32]
+        }
+    }
+    let (px, nx, py, ny, pz, nz) = (
+        get_x(&chunks, pos + IVec3::new(1, 0, 0)),
+        get_x(&chunks, pos + IVec3::new(-1, 0, 0)),
+        get_y(&chunks, pos + IVec3::new(0, 1, 0)),
+        get_y(&chunks, pos + IVec3::new(0, -1, 0)),
+        get_z(&chunks, pos + IVec3::new(0, 0, 1)),
+        get_z(&chunks, pos + IVec3::new(0, 0, -1)),
+    );
     for i in 0..32 {
         for j in 0..32 {
-            faces[0].0[i][j] =
-                x_aligned[i][j] & !((x_aligned[i][j] >> 1)/* | (neighbor_row << 31) */);
-            faces[1].0[i][j] =
-                x_aligned[i][j] & !((x_aligned[i][j] << 1)/* | (neighbor_row >> 31) */);
-            faces[2].0[i][j] =
-                y_aligned[i][j] & !((y_aligned[i][j] >> 1)/* | (neighbor_row << 31) */);
-            faces[3].0[i][j] =
-                y_aligned[i][j] & !((y_aligned[i][j] << 1)/* | (neighbor_row >> 31) */);
-            faces[4].0[i][j] =
-                z_aligned[i][j] & !((z_aligned[i][j] >> 1)/* | (neighbor_row << 31) */);
-            faces[5].0[i][j] =
-                z_aligned[i][j] & !((z_aligned[i][j] << 1)/* | (neighbor_row >> 31) */);
+            faces[0].0[i][j] = x_aligned[i][j] & !((x_aligned[i][j] >> 1) | (nx[i][j] << 31));
+            faces[1].0[i][j] = x_aligned[i][j] & !((x_aligned[i][j] << 1) | (px[i][j] >> 31));
+            faces[2].0[i][j] = y_aligned[i][j] & !((y_aligned[i][j] >> 1) | (ny[i][j] << 31));
+            faces[3].0[i][j] = y_aligned[i][j] & !((y_aligned[i][j] << 1) | (py[i][j] >> 31));
+            faces[4].0[i][j] = z_aligned[i][j] & !((z_aligned[i][j] >> 1) | (nz[i][j] << 31));
+            faces[5].0[i][j] = z_aligned[i][j] & !((z_aligned[i][j] << 1) | (pz[i][j] >> 31));
         }
     }
     let _ = || {
@@ -191,13 +303,10 @@ fn map_visible(voxels: &[[[VoxelType; 32]; 32]; 32], pos: IVec3) -> [ChunkFaces;
     faces
 }
 
-use crate::gpu::mesh::Mesh;
+use crate::gpu::{instance::Instance, mesh::Mesh};
 pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
     let chunk_pos = chunk_pos << 5;
-    let mut mesh = Mesh {
-        vertices: Vec::with_capacity(24576), // the points
-        indices: Vec::with_capacity(184320), // which points form a triangle
-    };
+    let mut mesh = Mesh::with_capacity(100);
     for x in 0..32 {
         for y in 0..32 {
             for z in 0..32 {
@@ -206,22 +315,22 @@ pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) ->
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x < position.x {
-                    mesh += Mesh::face_nx(position)
+                    mesh += Instance::face_nx(position)
                 }
                 if faces[1].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x > position.x + 0.9 {
-                    mesh += Mesh::face_px(position)
+                    mesh += Instance::face_px(position)
                 }
                 if faces[2].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y < position.y {
-                    mesh += Mesh::face_ny(position)
+                    mesh += Instance::face_ny(position)
                 }
                 if faces[3].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y > position.y + 0.9 {
-                    mesh += Mesh::face_py(position)
+                    mesh += Instance::face_py(position)
                 }
                 if faces[4].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z < position.z {
-                    mesh += Mesh::face_nz(position)
+                    mesh += Instance::face_nz(position)
                 }
                 if faces[5].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z > position.z + 0.9 {
-                    mesh += Mesh::face_pz(position)
+                    mesh += Instance::face_pz(position)
                 }
             }
         }
@@ -230,10 +339,7 @@ pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) ->
 }
 pub fn generate_mesh_without_cam_occ(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
     let chunk_pos = chunk_pos << 5;
-    let mut mesh = Mesh {
-        vertices: Vec::with_capacity(24576), // the points
-        indices: Vec::with_capacity(184320), // which points form a triangle
-    };
+    let mut mesh = Mesh::with_capacity(100);
     for x in 0..32 {
         for y in 0..32 {
             for z in 0..32 {
@@ -242,22 +348,22 @@ pub fn generate_mesh_without_cam_occ(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 {
-                    mesh += Mesh::face_nx(position)
+                    mesh += Instance::face_nx(position)
                 }
                 if faces[1].0[y][z] & (MASK_BIT >> x) > 0 {
-                    mesh += Mesh::face_px(position)
+                    mesh += Instance::face_px(position)
                 }
                 if faces[2].0[z][x] & (MASK_BIT >> y) > 0 {
-                    mesh += Mesh::face_ny(position)
+                    mesh += Instance::face_ny(position)
                 }
                 if faces[3].0[z][x] & (MASK_BIT >> y) > 0 {
-                    mesh += Mesh::face_py(position)
+                    mesh += Instance::face_py(position)
                 }
                 if faces[4].0[x][y] & (MASK_BIT >> z) > 0 {
-                    mesh += Mesh::face_nz(position)
+                    mesh += Instance::face_nz(position)
                 }
                 if faces[5].0[x][y] & (MASK_BIT >> z) > 0 {
-                    mesh += Mesh::face_pz(position)
+                    mesh += Instance::face_pz(position)
                 }
             }
         }

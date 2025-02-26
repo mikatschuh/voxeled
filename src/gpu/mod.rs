@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod camera_controller;
+pub mod instance;
 // pub mod exotic_cameras;
 pub mod mesh;
 mod shader;
@@ -8,6 +9,8 @@ pub mod window;
 
 use camera::Camera3d;
 use camera_controller::CameraController;
+use glam::Vec3;
+use instance::Instance;
 use mesh::*;
 use texture::Texture;
 use wgpu::util::DeviceExt;
@@ -53,6 +56,9 @@ where
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+
+    mesh: Mesh,
+    instance_buffer: wgpu::Buffer,
 }
 
 impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
@@ -230,18 +236,23 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         });
         let shader = device.create_shader_module(crate::gpu::shader::make_shader());
 
-        let mesh = Mesh::default();
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&mesh.vertices),
+            contents: bytemuck::cast_slice(&Vertex::vertices()),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&mesh.indices),
+            contents: bytemuck::cast_slice(&Vertex::indices()),
             usage: wgpu::BufferUsages::INDEX,
         });
+        let instances = Mesh::new();
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instances.instances),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
@@ -311,7 +322,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: "vs_main",
-                    buffers: &[Vertex::desc()],
+                    buffers: &[Vertex::desc(), Instance::desc()],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
@@ -418,7 +429,9 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             camera_buffer,
             vertex_buffer,
             index_buffer,
-            num_indices: mesh.indices.len() as u32,
+            mesh: instances,
+            instance_buffer,
+            num_indices: 6,
         }
     }
     /// Eine Methode welche die Fenstergröße anpasst.
@@ -506,20 +519,13 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         );
     }
     pub fn update_mesh(&mut self, mesh: &Mesh) {
-        self.num_indices = mesh.indices.len() as u32;
-        self.vertex_buffer = self
+        self.mesh = mesh.clone();
+        self.instance_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&mesh.vertices),
+                label: Some("Instance Buffer"),
+                contents: bytemuck::cast_slice(&self.mesh.instances),
                 usage: wgpu::BufferUsages::VERTEX,
-            });
-        self.index_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&mesh.indices),
-                usage: wgpu::BufferUsages::INDEX,
             });
     }
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
@@ -584,11 +590,15 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.mesh.instances.len() as _);
         }
 
         // Zweiter Render-Pass: Post-Processing mit der ersten Textur als Input

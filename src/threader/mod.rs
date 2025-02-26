@@ -24,6 +24,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+pub mod lazy;
 pub mod task;
 use task::Task;
 

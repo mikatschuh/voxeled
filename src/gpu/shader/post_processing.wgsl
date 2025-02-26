@@ -36,11 +36,6 @@ fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
     return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
 }
 
-fn linearize_depth(depth: f32, near: f32, far: f32) -> f32 {
-    let z = depth * 2.0 - 1.0; // Depth von [0,1] nach [-1,1] für NDC transformieren
-    return (far + near - z * (far - near)) / (near * far); // Invertierte Berechnung
-}
-
 // Simplified FXAA implementation for voxel renderer
 @fragment
 fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
@@ -104,9 +99,9 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let scan_line = sin(pos.y * 120.0) * 0.08 + 0.92;
 
     // Add some color distortion/aberration (RGB shift)
-    let r = textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.004, 0.0)).r;
+    let r = textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.002, 0.0)).r;
     let g = color.g;
-    let b = textureSample(prev_img, prev_img_s, pos - vec2<f32>(0.004, 0.0)).b;
+    let b = textureSample(prev_img, prev_img_s, pos - vec2<f32>(0.002, 0.0)).b;
 
     // Create vignette effect (darker at the edges)
     let screenCenter = vec2<f32>(0.5, 0.5); // Mittelpunkt des Bildschirms für Vignette
@@ -123,10 +118,22 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     );
 
     // Combine all effects
-    let final_color = contrast_color * scan_line * vignette;
+    let final_color = contrast_color  * vignette;
 
     // Add a subtle blue-green tint to give it a retro computing feel
     let tint = vec3<f32>(0.95, 1.05, 1.05);
 
     return vec4<f32>(final_color * tint, 1.0);
+}
+fn color(prev: f32) -> vec3<f32> {
+    // Farbverlauf basierend auf Sinuswellen
+    let r = 0.5 + 0.5 * cos(6.2831 * prev + 0.0);
+    let g = 0.5 + 0.5 * cos(6.2831 * prev + 2.0);
+    let b = 0.5 + 0.5 * cos(6.2831 * prev + 4.0);
+
+    return vec3<f32>(r, g, b);
+}
+fn linearize_depth(depth: f32, near: f32, far: f32) -> f32 {
+    let z = depth * 2.0 - 1.0; // Depth von [0,1] nach [-1,1] für NDC transformieren
+    return (far + near - z * (far - near)) / (near * far); // Invertierte Berechnung
 }
