@@ -495,7 +495,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 .rotate_around_angle(glam::Vec3::new(
                     -keys.mouse_motion.x as f32,
                     -keys.mouse_motion.y as f32,
-                    keys.e.state - keys.q.state,
+                    keys.q.state - keys.e.state,
                 ));
             if keys.mouse_wheel.y != 0.0 {
                 self.camera.controller().update_acc(keys.mouse_wheel.y)
