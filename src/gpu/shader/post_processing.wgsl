@@ -36,6 +36,8 @@ fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
     return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
 }
 
+const COLOR_SHIFT: f32 = 0.001;
+
 // Simplified FXAA implementation for voxel renderer
 @fragment
 fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
@@ -99,9 +101,9 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let scan_line = sin(pos.y * 120.0) * 0.08 + 0.92;
 
     // Add some color distortion/aberration (RGB shift)
-    let r = textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.002, 0.0)).r;
+    let r = textureSample(prev_img, prev_img_s, pos + vec2<f32>(COLOR_SHIFT, 0.0)).r;
     let g = color.g;
-    let b = textureSample(prev_img, prev_img_s, pos - vec2<f32>(0.002, 0.0)).b;
+    let b = textureSample(prev_img, prev_img_s, pos - vec2<f32>(COLOR_SHIFT, 0.0)).b;
 
     // Create vignette effect (darker at the edges)
     let screenCenter = vec2<f32>(0.5, 0.5); // Mittelpunkt des Bildschirms für Vignette

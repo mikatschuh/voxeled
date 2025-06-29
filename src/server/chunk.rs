@@ -311,25 +311,24 @@ pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) ->
         for y in 0..32 {
             for z in 0..32 {
                 let position: IVec3 = chunk_pos + IVec3::new(x as i32, y as i32, z as i32);
-                let position = position.as_vec3();
 
                 const MASK_BIT: u32 = 1_u32 << 31;
-                if faces[0].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x < position.x {
+                if faces[0].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x < position.x as f32 {
                     mesh += Instance::face_nx(position)
                 }
-                if faces[1].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x > position.x + 0.9 {
+                if faces[1].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x > position.x as f32 + 0.9 {
                     mesh += Instance::face_px(position)
                 }
-                if faces[2].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y < position.y {
+                if faces[2].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y < position.y as f32 {
                     mesh += Instance::face_ny(position)
                 }
-                if faces[3].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y > position.y + 0.9 {
+                if faces[3].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y > position.y as f32 + 0.9 {
                     mesh += Instance::face_py(position)
                 }
-                if faces[4].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z < position.z {
+                if faces[4].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z < position.z as f32 {
                     mesh += Instance::face_nz(position)
                 }
-                if faces[5].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z > position.z + 0.9 {
+                if faces[5].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z > position.z as f32 + 0.9 {
                     mesh += Instance::face_pz(position)
                 }
             }
@@ -344,7 +343,6 @@ pub fn generate_mesh_without_cam_occ(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -
         for y in 0..32 {
             for z in 0..32 {
                 let position: IVec3 = chunk_pos + IVec3::new(x as i32, y as i32, z as i32);
-                let position = position.as_vec3();
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 {

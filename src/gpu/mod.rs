@@ -9,7 +9,6 @@ pub mod window;
 
 use camera::Camera3d;
 use camera_controller::CameraController;
-use glam::Vec3;
 use instance::Instance;
 use mesh::*;
 use texture::Texture;
