@@ -124,8 +124,11 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
 
     // Add a subtle blue-green tint to give it a retro computing feel
     let tint = vec3<f32>(0.95, 1.05, 1.05);
+    let linearized_depth = linearize_depth(textureSample(depth_img, depth_img_s, pos), 0.001, 1000.0) * 32.0;
+    // 1 = x^2 + y^2 => 1 - x^2 = y^2 => -x^2 = y^2 - 1 => x^2 = 1-y^2 => x = √(1-y^2)
+    let brightness = min(linearized_depth, 1.0); // sqrt(1.0 - linearized_depth * linearized_depth);
 
-    return vec4<f32>(final_color * tint, 1.0);
+    return vec4<f32>(final_color * tint * brightness, 1.0);
 }
 fn color(prev: f32) -> vec3<f32> {
     // Farbverlauf basierend auf Sinuswellen

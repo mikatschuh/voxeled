@@ -16,6 +16,8 @@ num_cpus = "1.16"
 rand = "0.8.5"
 noise = "*"
 colored = "2.0"
+rustyline = "13"
+num = "*"
 
 [dependencies.image]
 version = "0.24"

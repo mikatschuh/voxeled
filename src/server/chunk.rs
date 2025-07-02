@@ -11,6 +11,7 @@ pub struct Chunk {
     pub(super) voxels: [[[VoxelType; 32]; 32]; 32],
     pub occlusion_map: [ChunkFaces; 6],
     pub(super) entities: Vec<Entity>,
+    pub is_empty: bool,
 }
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Entity {}
@@ -42,6 +43,7 @@ impl Chunk {
             voxels,
             occlusion_map: map_visible(&voxels, pos, chunks),
             entities: Vec::new(),
+            is_empty: false,
         }
     }
     pub fn from_rain_drops(pos: IVec3, noise: &AnimatedNoise, time: f64, chunks: &Chunks) -> Self {
@@ -75,6 +77,7 @@ impl Chunk {
                 map_visible(&voxels, pos, chunks)
             },
             entities: Vec::new(),
+            is_empty: empty,
         }
     }
     pub fn from_landscape(pos: IVec3, noise: &AnimatedNoise, time: f64, chunks: &Chunks) -> Self {
@@ -109,6 +112,7 @@ impl Chunk {
                 map_visible(&voxels, pos, chunks)
             },
             entities: Vec::new(),
+            is_empty: false,
         }
     }
 
@@ -126,6 +130,7 @@ impl Chunk {
             voxels,
             occlusion_map: map_visible(&voxels, pos, chunks),
             entities: Vec::new(),
+            is_empty: false,
         }
     }
 }
@@ -264,30 +269,30 @@ pub fn map_visible(
             faces[5].0[i][j] = z_aligned[i][j] & !((z_aligned[i][j] << 1) | (pz[i][j] >> 31));
         }
     }
-    let _ = || {
-        println!(
-            "\
-        x:  {}\n\
-        -x: {}\n\
-        +x: {}\n\n\
-        y:  {}\n\
-        -y: {}\n\
-        +y: {}\n\n\
-        z:  {}\n\
-        -z: {}\n\
-        +z: {}\n\
-        ",
-            format(x_aligned[0][0]),
-            format(faces[0].0[0][0]),
-            format(faces[1].0[0][0]),
-            format(y_aligned[0][0]),
-            format(faces[2].0[0][0]),
-            format(faces[3].0[0][0]),
-            format(z_aligned[0][0]),
-            format(faces[4].0[0][0]),
-            format(faces[5].0[0][0])
-        );
-    };
+    /*
+    println!(
+        "\
+    x:  {}\n\
+    -x: {}\n\
+    +x: {}\n\n\
+    y:  {}\n\
+    -y: {}\n\
+    +y: {}\n\n\
+    z:  {}\n\
+    -z: {}\n\
+    +z: {}\n\
+    ",
+        format(x_aligned[0][0]),
+        format(faces[0].0[0][0]),
+        format(faces[1].0[0][0]),
+        format(y_aligned[0][0]),
+        format(faces[2].0[0][0]),
+        format(faces[3].0[0][0]),
+        format(z_aligned[0][0]),
+        format(faces[4].0[0][0]),
+        format(faces[5].0[0][0])
+    );
+
     fn format(num: u32) -> String {
         let mut out = String::new();
         for i in (0..32).rev() {
@@ -299,6 +304,7 @@ pub fn map_visible(
         }
         out
     }
+    */
     // WARNING! additional step: add non solid blocks back in
     faces
 }

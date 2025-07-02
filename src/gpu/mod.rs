@@ -134,7 +134,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
@@ -257,10 +257,13 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         Self {
             _phantom: std::marker::PhantomData,
             diffuse_bind_group: {
-                let texture = Texture::from_image(
+                let texture = Texture::from_images(
                     &device,
                     &queue,
-                    &image::load_from_memory(include_bytes!("stone.png")).unwrap(),
+                    &[
+                        image::load_from_memory(include_bytes!("stone.png")).unwrap(),
+                        image::load_from_memory(include_bytes!("dirt.png")).unwrap(),
+                    ],
                     Some("Stone Texture"),
                 );
                 device.create_bind_group(&wgpu::BindGroupDescriptor {

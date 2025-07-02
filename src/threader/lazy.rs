@@ -10,7 +10,9 @@ impl<T> Lazy<T> {
         let (s, r) = bounded(1);
         (Self::Waiting(r), s)
     }
-
+    pub fn val(val: T) -> Self {
+        Self::Val(Box::new(val))
+    }
     pub fn get(&mut self) -> &T {
         match self {
             Self::Val(ref val) => val,

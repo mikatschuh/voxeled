@@ -1,36 +1,39 @@
 use crossbeam::atomic::AtomicCell;
 use std::{sync::Arc, time::Instant};
 
-/// Eine Struktur die den Zeitpunkt vom letzten Update speichert und updaten kann.
+/// A structure, which is able to store the exact time of the last update.
 pub struct DeltaTimeMeter {
     last_update: Instant,
     current: DeltaTime,
 }
 impl DeltaTimeMeter {
-    /// Erstellt eine neue DeltaTime - Instanz.
-    pub fn now() -> Self {
+    /// Creates a new delta-time instance.
+    /// The instance will
+    pub fn new() -> Self {
         Self {
             last_update: Instant::now(),
             current: DeltaTime(Arc::new(AtomicCell::new(0))),
         }
     }
-    /// Lockt die neue DeltaTime ein.
+    /// Logs a new delta-time.
     pub fn update(&mut self) {
         self.current
             .0
             .store(self.last_update.elapsed().as_nanos() as u64);
         self.last_update = Instant::now()
     }
-    pub fn new_reader(&self) -> DeltaTime {
+    /// Creates a new delta-time-reader which is able to read out and obtain the current delta-time.
+    pub fn reader(&self) -> DeltaTime {
         self.current.clone()
     }
 }
 #[derive(Clone)]
 pub struct DeltaTime(Arc<AtomicCell<u64>>);
+pub type Ms = f32;
 
 impl DeltaTime {
-    /// Gibt die Delta-Time zurück. In Millisekunden.
-    pub fn get(&self) -> f32 {
+    /// returns the delta-time in milliseconds
+    pub fn get(&self) -> Ms {
         self.0.load() as f32 / 1_000_000.0
     }
 }

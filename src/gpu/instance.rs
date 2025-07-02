@@ -1,10 +1,17 @@
 use glam::IVec3;
 
+/// The kind states the orientation and the texture.
+/// It has the following layout:
+/// ```
+///                                           |texture      |orientation
+/// |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|
+/// ```
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Instance {
     pos: IVec3,
-    kind: u16,
+    kind: u32,
 }
 unsafe impl bytemuck::Pod for Instance {}
 unsafe impl bytemuck::Zeroable for Instance {}

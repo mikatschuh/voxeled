@@ -6,19 +6,23 @@ pub struct Texture {
     pub sampler: wgpu::Sampler,
 }
 impl Texture {
-    pub fn from_image(
+    pub fn from_images(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        img: &image::DynamicImage,
+        imgs: &[image::DynamicImage],
         label: Option<&str>,
     ) -> Self {
-        let rgba = img.to_rgba8();
-        let dimensions = img.dimensions();
+        assert!(imgs.len() != 0);
+        let dimensions = imgs[0].dimensions();
+
+        for img in imgs.iter() {
+            assert!(dimensions == img.dimensions())
+        }
 
         let size = wgpu::Extent3d {
             width: dimensions.0,
             height: dimensions.1,
-            depth_or_array_layers: 1,
+            depth_or_array_layers: imgs.len() as u32,
         };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label,
@@ -31,23 +35,39 @@ impl Texture {
             view_formats: &[],
         });
 
-        queue.write_texture(
-            wgpu::ImageCopyTexture {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &rgba,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
-            },
-            size,
-        );
+        for (i, img) in imgs.iter().enumerate() {
+            let rgba = img.to_rgba8();
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: &texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: i as u32,
+                    },
+                },
+                &rgba,
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * dimensions.0),
+                    rows_per_image: Some(dimensions.1),
+                },
+                wgpu::Extent3d {
+                    width: dimensions.0,
+                    height: dimensions.1,
+                    depth_or_array_layers: 1, // 👈 nur 1 Layer pro call
+                },
+            );
+        }
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Texture Array View"),
+            format: Some(wgpu::TextureFormat::Rgba8Unorm),
+            dimension: Some(wgpu::TextureViewDimension::D2Array), // ❗
+            ..Default::default()
+        });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,

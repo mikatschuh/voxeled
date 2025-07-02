@@ -50,7 +50,7 @@ impl Vertex {
         }
     }
     pub fn vertices() -> [Vertex; 4] {
-        [Vertex(0), Vertex(1), Vertex(3), Vertex(4)]
+        [Vertex(0), Vertex(1), Vertex(2), Vertex(3)]
     }
     pub fn indices() -> [u16; 6] {
         [0, 1, 2, 0, 2, 3]
