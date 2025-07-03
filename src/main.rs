@@ -142,12 +142,12 @@ pub fn update(
     drawer.update(&key_map);
 
     let now = Instant::now();
-    drawer.update_mesh(&world.get_mesh(
+    drawer.update_mesh(world.get_mesh(
         cam_pos,
         cam_dir,
         Camera::<SmoothController>::FOV,
         drawer.window.aspect_ratio,
-        8,
+        10,
         noise.clone(),
         elapsed_time,
         threadpool,

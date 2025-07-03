@@ -58,7 +58,7 @@ impl Chunk {
                         (z as i32 + pos.z * 32) as f64,
                         time,
                     );
-                    *voxel = if val > 0.9 {
+                    *voxel = if val > 0.5 {
                         empty = false;
                         VoxelType::random_weighted()
                     } else {

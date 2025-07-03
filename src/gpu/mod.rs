@@ -10,6 +10,7 @@ pub mod window;
 
 use camera::Camera3d;
 use camera_controller::CameraController;
+use glam::IVec3;
 use instance::Instance;
 use mesh::*;
 use texture::Texture;
@@ -57,6 +58,7 @@ where
     index_buffer: wgpu::Buffer,
     num_indices: u32,
 
+    max_buffer_size: usize,
     mesh: Mesh,
     instance_buffer: wgpu::Buffer,
 }
@@ -246,17 +248,22 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             contents: bytemuck::cast_slice(&Vertex::indices()),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let instances = Mesh::new();
+        let max_buffer_size = 268435456 / size_of::<Instance>(); //device.limits().max_buffer_size as usize;
+
+        let instances: Vec<Instance> = (0..max_buffer_size)
+            .map(|_| Instance::face_ny(IVec3::new(0, -1_000_000, 0), texture_set::Texture::Stone))
+            .collect();
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instances.instances),
-            usage: wgpu::BufferUsages::VERTEX,
+            contents: bytemuck::cast_slice(&instances),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
             _phantom: std::marker::PhantomData,
+            max_buffer_size,
             diffuse_bind_group: {
                 let texture = Texture::from_images(
                     &device,
@@ -432,7 +439,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             camera_buffer,
             vertex_buffer,
             index_buffer,
-            mesh: instances,
+            mesh: Mesh { instances },
             instance_buffer,
             num_indices: 6,
         }
@@ -521,15 +528,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
         );
     }
-    pub fn update_mesh(&mut self, mesh: &Mesh) {
-        self.mesh = mesh.clone();
-        self.instance_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&self.mesh.instances),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+    pub fn update_mesh(&mut self, mesh: Mesh) {
+        self.mesh = mesh;
     }
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     /// # Errors
@@ -591,7 +591,6 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-
             render_pass.set_pipeline(&self.render_pipeline);
 
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
@@ -601,7 +600,11 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.mesh.instances.len() as _);
+            for chunk in self.mesh.instances.chunks(self.max_buffer_size) {
+                self.queue
+                    .write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(chunk));
+                render_pass.draw_indexed(0..self.num_indices, 0, 0..chunk.len() as _);
+            }
         }
 
         // Zweiter Render-Pass: Post-Processing mit der ersten Textur als Input
