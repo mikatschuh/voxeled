@@ -1,29 +1,41 @@
+use crate::gpu::texture_set::Texture;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VoxelType {
     Air,
-    Solid,
+    Stone,
+    Dirt,
 }
+use VoxelType::*;
 impl VoxelType {
     pub fn from_random() -> Self {
-        let random_index = crate::random::get_random(0, 1); // 0 oder 1
+        let random_index = crate::random::get_random(0, 2); // 0 oder 1
         match random_index {
             0 => Self::Air,
-            1 => Self::Solid,
+            1 => Self::Stone,
+            2 => Self::Dirt,
             _ => unreachable!(), // Sollte nie passieren
         }
     }
-    pub fn from_random_weighted() -> Self {
+    pub fn random_weighted() -> Self {
         let random_index = crate::random::get_random(0, 4); // 0 oder 1
         match random_index == 0 {
-            false => Self::Air,
-            true => Self::Solid,
+            false => Self::Dirt,
+            true => Self::Stone,
         }
     }
-    pub fn is_solid_u32(&self) -> u32 {
-        if *self as u8 > 0 {
+    pub fn is_solid_u32(self) -> u32 {
+        if self as u8 > 0 {
             0b1000_0000__0000_0000__0000_0000__0000_0000
         } else {
             0
+        }
+    }
+    pub fn texture(self) -> Texture {
+        match self {
+            Stone => Texture::Stone,
+            Dirt => Texture::Dirt,
+            _ => panic!("Air has no texture!"),
         }
     }
 }

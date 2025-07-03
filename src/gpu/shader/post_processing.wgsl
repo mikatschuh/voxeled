@@ -1,3 +1,7 @@
+const distance_fog: f32 = 23.0;
+const COLOR_SHIFT: f32 = 0.001;
+const SKY_COLOR: vec3<f32> = vec3<f32>(0.2, 0.5, 0.7);
+
 struct PostProcessingOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
@@ -30,24 +34,22 @@ var depth_img: texture_depth_2d;
 @group(1) @binding(1)
 var depth_img_s: sampler;
 
-// Helpers for FXAA
-fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
-    // Convert RGB to brightness using standard coefficients
-    return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+@fragment
+fn post_processing(in: PostProcessingOutput) -> @location(0) vec4<f32> {
+    let pos = in.tex_coords;
+    let depth = textureSample(depth_img, depth_img_s, pos);
+    let color = textureSample(prev_img, prev_img_s, pos).rgb;
+
+    return vec4<f32>(apply_effects(pos, color, depth), 1.0);
 }
 
-const COLOR_SHIFT: f32 = 0.001;
-
-// Simplified FXAA implementation for voxel renderer
-@fragment
-fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
-    let pos = in.tex_coords;
+fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
+    if depth == 1.0 { return SKY_COLOR; }
     // FXAA implementation
-    var color = textureSample(prev_img, prev_img_s, pos);
     let pixelSize = 1.0 / vec2<f32>(textureDimensions(prev_img, 0));
 
     // Sample neighboring pixels
-    let center = color.rgb;
+    var center = color;
     let lumaCenter = rgb_to_luma(center);
 
     let lumaUp = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + vec2<f32>(0.0, -pixelSize.y)).rgb);
@@ -77,8 +79,8 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
 
         // Sampling step distance depends on the edge length
         let stepLength = 0.5;
-        let oppositeLuma1 = rgb_to_luma(textureSample(prev_img, prev_img_s, pos + samplingDirection * pixelSize * stepLength).rgb);
-        let oppositeLuma2 = rgb_to_luma(textureSample(prev_img, prev_img_s, pos - samplingDirection * pixelSize * stepLength).rgb);
+        let oppositeLuma1 = rgb_to_luma(image(pos + samplingDirection * pixelSize * stepLength));
+        let oppositeLuma2 = rgb_to_luma(image(pos - samplingDirection * pixelSize * stepLength));
 
         // Blend between original and anti-aliased sample based on edge significance
         let blendFactor = 0.6; // How strong the anti-aliasing effect is
@@ -86,11 +88,11 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
 
         // Apply simple anti-aliasing - blend with neighbors based on edge strength
         let sampleOffset = samplingDirection * pixelSize * blendFactor;
-        let sample1 = textureSample(prev_img, prev_img_s, in.tex_coords + sampleOffset).rgb;
-        let sample2 = textureSample(prev_img, prev_img_s, in.tex_coords - sampleOffset).rgb;
+        let sample1 = image(pos + sampleOffset);
+        let sample2 = image(pos - sampleOffset);
 
         let blendWeight = clamp(edgeStrength, 0.0, 0.5);
-        color = vec4<f32>(mix(center, (sample1 + sample2) * 0.5, blendWeight), color.a);
+        center = vec3<f32>(mix(center, (sample1 + sample2) * 0.5, blendWeight));
     }
 
     // Now apply our CRT/retro effects to the anti-aliased image
@@ -124,12 +126,21 @@ fn apply_effects(in: PostProcessingOutput) -> @location(0) vec4<f32> {
 
     // Add a subtle blue-green tint to give it a retro computing feel
     let tint = vec3<f32>(0.95, 1.05, 1.05);
-    let linearized_depth = linearize_depth(textureSample(depth_img, depth_img_s, pos), 0.001, 1000.0) * 32.0;
+    let linearized_depth = linearize_depth(depth, 0.001, 1000.0) * distance_fog;
     // 1 = x^2 + y^2 => 1 - x^2 = y^2 => -x^2 = y^2 - 1 => x^2 = 1-y^2 => x = √(1-y^2)
-    let brightness = min(linearized_depth, 1.0); // sqrt(1.0 - linearized_depth * linearized_depth);
+    let fog = min(linearized_depth, 1.0); // sqrt(1.0 - linearized_depth * linearized_depth);
 
-    return vec4<f32>(final_color * tint * brightness, 1.0);
+    return mix(final_color * tint, SKY_COLOR, 1.0 - fog);
 }
+// Helpers for FXAA
+fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
+    // Convert RGB to brightness using standard coefficients
+    return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+}
+fn image(pos: vec2<f32>) -> vec3<f32> {
+    return textureSample(prev_img, prev_img_s, pos).rgb;
+}
+
 fn color(prev: f32) -> vec3<f32> {
     // Farbverlauf basierend auf Sinuswellen
     let r = 0.5 + 0.5 * cos(6.2831 * prev + 0.0);

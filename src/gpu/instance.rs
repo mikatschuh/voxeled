@@ -1,9 +1,11 @@
 use glam::IVec3;
 
+use crate::gpu::texture_set;
+
 /// The kind states the orientation and the texture.
 /// It has the following layout:
 /// ```
-///                                           |texture      |orientation
+///                                           |texture        |orientation
 /// |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|
 /// ```
 
@@ -17,12 +19,6 @@ unsafe impl bytemuck::Pod for Instance {}
 unsafe impl bytemuck::Zeroable for Instance {}
 
 impl Instance {
-    pub fn new(x: i32, y: i32, z: i32) -> Self {
-        Self {
-            pos: IVec3 { x, y, z },
-            kind: 0,
-        }
-    }
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
         wgpu::VertexBufferLayout {
@@ -49,22 +45,40 @@ impl Instance {
             ],
         }
     }
-    pub fn face_nx(pos: IVec3) -> Self {
-        Self { pos, kind: 0 }
+    pub fn face_nx(pos: IVec3, texture: texture_set::Texture) -> Self {
+        Self {
+            pos,
+            kind: (texture as u32) << 3 | 0,
+        }
     }
-    pub fn face_px(pos: IVec3) -> Self {
-        Self { pos, kind: 1 }
+    pub fn face_px(pos: IVec3, texture: texture_set::Texture) -> Self {
+        Self {
+            pos,
+            kind: (texture as u32) << 3 | 1,
+        }
     }
-    pub fn face_ny(pos: IVec3) -> Self {
-        Self { pos, kind: 2 }
+    pub fn face_ny(pos: IVec3, texture: texture_set::Texture) -> Self {
+        Self {
+            pos,
+            kind: (texture as u32) << 3 | 2,
+        }
     }
-    pub fn face_py(pos: IVec3) -> Self {
-        Self { pos, kind: 3 }
+    pub fn face_py(pos: IVec3, texture: texture_set::Texture) -> Self {
+        Self {
+            pos,
+            kind: (texture as u32) << 3 | 3,
+        }
     }
-    pub fn face_nz(pos: IVec3) -> Self {
-        Self { pos, kind: 4 }
+    pub fn face_nz(pos: IVec3, texture: texture_set::Texture) -> Self {
+        Self {
+            pos,
+            kind: (texture as u32) << 3 | 4,
+        }
     }
-    pub fn face_pz(pos: IVec3) -> Self {
-        Self { pos, kind: 5 }
+    pub fn face_pz(pos: IVec3, texture: texture_set::Texture) -> Self {
+        Self {
+            pos,
+            kind: (texture as u32) << 3 | 5,
+        }
     }
 }

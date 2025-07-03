@@ -5,6 +5,7 @@ pub mod instance;
 pub mod mesh;
 mod shader;
 mod texture;
+pub mod texture_set;
 pub mod window;
 
 use camera::Camera3d;
@@ -261,8 +262,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     &device,
                     &queue,
                     &[
-                        image::load_from_memory(include_bytes!("stone.png")).unwrap(),
-                        image::load_from_memory(include_bytes!("dirt.png")).unwrap(),
+                        image::load_from_memory(texture_set::Texture::Stone.bytes()).unwrap(),
+                        image::load_from_memory(texture_set::Texture::Dirt.bytes()).unwrap(),
                     ],
                     Some("Stone Texture"),
                 );
@@ -396,7 +397,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: "apply_effects",
+                        entry_point: "post_processing",
                         targets: &[Some(wgpu::ColorTargetState {
                             format: config.format, // Das Renderziel (z. B. Swapchain-Format)
                             blend: Some(wgpu::BlendState::REPLACE), // Einfaches Overwriting

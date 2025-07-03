@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 pub(super) fn make_shader() -> wgpu::ShaderModuleDescriptor<'static> {
     wgpu::ShaderModuleDescriptor {
-        label: Some("main"),
+        label: None,
         source: wgpu::ShaderSource::Wgsl(
             crate::gpu::shader::collect_shader(std::path::PathBuf::from("./src")).into(),
         ),

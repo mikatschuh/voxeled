@@ -10,7 +10,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Instant;
 
 const PRELOAD_DISTANCE: usize = 10;
-const CHUNK_GENERATOR: fn(IVec3, &AnimatedNoise, f64, &Chunks) -> Chunk = Chunk::from_rain_drops;
+const CHUNK_GENERATOR: fn(IVec3, &AnimatedNoise, f64, &Chunks) -> Chunk = Chunk::from_landscape;
 
 /// # Plan for Mesh Generation
 ///
@@ -46,6 +46,7 @@ impl Server {
                 let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
                 chunks.add(chunk_coord, chunk.clone());
                 let result = Box::new(chunk::generate_mesh_without_cam_occ(
+                    &chunk.voxels,
                     chunk_coord,
                     chunk.occlusion_map,
                 ));
@@ -83,6 +84,7 @@ impl Server {
         points.iter().for_each(|chunk_coord| {
             let chunk_coord = chunk_coord.clone();
             let occlusion_map;
+            let voxels;
             if let Some(lazy_mesh) = self.meshes.get_mut(&chunk_coord) {
                 /*if let Some(chunk_mesh) = lazy_mesh.try_get() {
                     let chunk = self.chunks.get(*chunk_coord).unwrap();
@@ -100,7 +102,8 @@ impl Server {
                     self.meshes.insert(chunk_coord, Lazy::val(Mesh::new()));
                     return;
                 }
-                occlusion_map = chunk.occlusion_map
+                occlusion_map = chunk.occlusion_map;
+                voxels = chunk.voxels;
             }
 
             // let noise = noise.clone();
@@ -113,6 +116,7 @@ impl Server {
             threadpool.dynamic_priority(move || {
                 let now = Instant::now();
                 let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
+                    &voxels,
                     chunk_coord,
                     occlusion_map,
                 ));

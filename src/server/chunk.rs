@@ -34,7 +34,7 @@ impl Chunk {
         for plane in voxels.iter_mut() {
             for row in plane.iter_mut() {
                 for voxel in row.iter_mut() {
-                    *voxel = VoxelType::from_random_weighted()
+                    *voxel = VoxelType::random_weighted()
                 }
             }
         }
@@ -60,7 +60,7 @@ impl Chunk {
                     );
                     *voxel = if val > 0.9 {
                         empty = false;
-                        VoxelType::Solid
+                        VoxelType::random_weighted()
                     } else {
                         VoxelType::Air
                     }
@@ -85,17 +85,17 @@ impl Chunk {
         let mut empty = true;
         for x in 0..32 {
             for z in 0..32 {
-                let height = (noise.get_octaves(
+                let height = noise.get_octaves(
                     (x as i32 + pos.x * 32) as f64,
                     0.0,
                     (z as i32 + pos.z * 32) as f64,
                     time,
                     5,
-                ));
+                );
                 for y in 0..32 {
                     voxels[x][y][z] = if y as i32 + pos.y * 32 > (height * height * 100.0) as i32 {
                         empty = false;
-                        VoxelType::Solid
+                        VoxelType::random_weighted()
                     } else {
                         VoxelType::Air
                     }
@@ -112,7 +112,7 @@ impl Chunk {
                 map_visible(&voxels, pos, chunks)
             },
             entities: Vec::new(),
-            is_empty: false,
+            is_empty: empty,
         }
     }
 
@@ -122,7 +122,7 @@ impl Chunk {
         super::every_chunk_in_frustum(Vec3::new(16.0, 16.0, 16.0), dir, FRAC_PI_2 as f32, 1.0, 3)
             .into_iter()
             .for_each(|coord| {
-                voxels[coord.x as usize][coord.y as usize][coord.z as usize] = VoxelType::Solid
+                voxels[coord.x as usize][coord.y as usize][coord.z as usize] = VoxelType::Stone
             });
 
         Self {
@@ -310,7 +310,12 @@ pub fn map_visible(
 }
 
 use crate::gpu::{instance::Instance, mesh::Mesh};
-pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
+pub fn generate_mesh(
+    cam_pos: Vec3,
+    voxels: &[[[VoxelType; 32]; 32]; 32],
+    chunk_pos: IVec3,
+    faces: [ChunkFaces; 6],
+) -> Mesh {
     let chunk_pos = chunk_pos << 5;
     let mut mesh = Mesh::with_capacity(100);
     for x in 0..32 {
@@ -320,29 +325,33 @@ pub fn generate_mesh(cam_pos: Vec3, chunk_pos: IVec3, faces: [ChunkFaces; 6]) ->
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x < position.x as f32 {
-                    mesh += Instance::face_nx(position)
+                    mesh += Instance::face_nx(position, voxels[x][y][z].texture())
                 }
                 if faces[1].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x > position.x as f32 + 0.9 {
-                    mesh += Instance::face_px(position)
+                    mesh += Instance::face_px(position, voxels[x][y][z].texture())
                 }
                 if faces[2].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y < position.y as f32 {
-                    mesh += Instance::face_ny(position)
+                    mesh += Instance::face_ny(position, voxels[x][y][z].texture())
                 }
                 if faces[3].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y > position.y as f32 + 0.9 {
-                    mesh += Instance::face_py(position)
+                    mesh += Instance::face_py(position, voxels[x][y][z].texture())
                 }
                 if faces[4].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z < position.z as f32 {
-                    mesh += Instance::face_nz(position)
+                    mesh += Instance::face_nz(position, voxels[x][y][z].texture())
                 }
                 if faces[5].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z > position.z as f32 + 0.9 {
-                    mesh += Instance::face_pz(position)
+                    mesh += Instance::face_pz(position, voxels[x][y][z].texture())
                 }
             }
         }
     }
     mesh
 }
-pub fn generate_mesh_without_cam_occ(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -> Mesh {
+pub fn generate_mesh_without_cam_occ(
+    voxels: &[[[VoxelType; 32]; 32]; 32],
+    chunk_pos: IVec3,
+    faces: [ChunkFaces; 6],
+) -> Mesh {
     let chunk_pos = chunk_pos << 5;
     let mut mesh = Mesh::with_capacity(100);
     for x in 0..32 {
@@ -352,22 +361,22 @@ pub fn generate_mesh_without_cam_occ(chunk_pos: IVec3, faces: [ChunkFaces; 6]) -
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 {
-                    mesh += Instance::face_nx(position)
+                    mesh += Instance::face_nx(position, voxels[x][y][z].texture())
                 }
                 if faces[1].0[y][z] & (MASK_BIT >> x) > 0 {
-                    mesh += Instance::face_px(position)
+                    mesh += Instance::face_px(position, voxels[x][y][z].texture())
                 }
                 if faces[2].0[z][x] & (MASK_BIT >> y) > 0 {
-                    mesh += Instance::face_ny(position)
+                    mesh += Instance::face_ny(position, voxels[x][y][z].texture())
                 }
                 if faces[3].0[z][x] & (MASK_BIT >> y) > 0 {
-                    mesh += Instance::face_py(position)
+                    mesh += Instance::face_py(position, voxels[x][y][z].texture())
                 }
                 if faces[4].0[x][y] & (MASK_BIT >> z) > 0 {
-                    mesh += Instance::face_nz(position)
+                    mesh += Instance::face_nz(position, voxels[x][y][z].texture())
                 }
                 if faces[5].0[x][y] & (MASK_BIT >> z) > 0 {
-                    mesh += Instance::face_pz(position)
+                    mesh += Instance::face_pz(position, voxels[x][y][z].texture())
                 }
             }
         }
