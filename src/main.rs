@@ -39,7 +39,7 @@ fn main() {
     let mut delta_time = time::DeltaTimeMeter::new();
     let mut camera: Camera<SmoothController> = gpu::camera::Camera::new(
         Vec3::new(0.0, 50.0, 0.0),
-        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
         delta_time.reader(),
     );
 
@@ -93,6 +93,7 @@ fn main() {
                             WindowEvent::RedrawRequested => {
                                 delta_time.update();
                                 threadpool.update();
+
                                 if frame_number == 0 {
                                     drawer.draw(control_flow)
                                 } else {
@@ -146,7 +147,7 @@ pub fn update(
         cam_dir,
         Camera::<SmoothController>::FOV,
         drawer.window.aspect_ratio,
-        12,
+        8,
         noise.clone(),
         elapsed_time,
         threadpool,

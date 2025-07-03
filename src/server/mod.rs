@@ -2,11 +2,11 @@ pub mod chunk;
 pub mod voxel;
 
 use crate::{gpu::mesh::Mesh, random::AnimatedNoise, threader::lazy::Lazy, threader::Threadpool};
-use chunk::{map_visible, Chunk};
+use chunk::Chunk;
 use colored::Colorize;
 use glam::IVec3;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 const PRELOAD_DISTANCE: usize = 10;
@@ -32,28 +32,33 @@ impl Server {
         }
     }
     pub fn init(&mut self, noise: Arc<AnimatedNoise>, threadpool: &mut Threadpool) {
-        for_point_in_square(IVec3::ZERO, 10, |chunk_coord| {
-            // if let Some(..) = self.meshes.get(&chunk_coord) {}
-
+        for_point_in_square(IVec3::ZERO, PRELOAD_DISTANCE as i32, |chunk_coord| {
             let noise = noise.clone();
             let chunks = self.chunks.clone();
 
             let (lazy_mesh, s) = Lazy::open();
             self.meshes.insert(chunk_coord, lazy_mesh);
 
-            threadpool.dynamic_priority(move || {
-                let now = Instant::now();
-                let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
-                chunks.add(chunk_coord, chunk.clone());
-                let result = Box::new(chunk::generate_mesh_without_cam_occ(
-                    &chunk.voxels,
-                    chunk_coord,
-                    chunk.occlusion_map,
-                ));
+            threadpool
+                .add_priority(move || {
+                    // let now = Instant::now();
+                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
+                    chunks.add(chunk_coord, chunk.clone());
 
-                _ = s.send(result);
-                // print_msg(now, chunk_coord)
-            });
+                    if chunk.is_empty {
+                        _ = s.send(Box::new(Mesh::new()));
+                    } else {
+                        _ = s.send(Box::new(
+                            crate::server::chunk::generate_mesh_without_cam_occ(
+                                &chunk.voxels,
+                                chunk_coord,
+                                chunk.occlusion_map,
+                            ),
+                        ));
+                    }
+                    // print_msg(now, chunk_coord)
+                })
+                .map_or_else(|| (), |task| task());
         });
         self.was_initiated = true;
     }
@@ -71,58 +76,45 @@ impl Server {
         if !self.was_initiated {
             self.init(noise.clone(), threadpool)
         }
-        let mut mesh = Mesh::with_capacity(32_000);
+        let mut mesh = Mesh::with_capacity(24_000_000);
         let cam_chunk_pos = cam_pos / 32.0;
 
-        let points = every_chunk_in_frustum(
+        let mut points = every_chunk_in_frustum(
             cam_chunk_pos,
             viewing_dir,
             fov,
             aspect_ratio,
             render_distance,
         );
+        points.sort_by(|a, b| a.y.cmp(&b.y).reverse());
         points.iter().for_each(|chunk_coord| {
-            let chunk_coord = chunk_coord.clone();
-            let occlusion_map;
-            let voxels;
-            if let Some(lazy_mesh) = self.meshes.get_mut(&chunk_coord) {
-                /*if let Some(chunk_mesh) = lazy_mesh.try_get() {
-                    let chunk = self.chunks.get(*chunk_coord).unwrap();
-                    let new_occlusion_map =
-                        map_visible(&chunk.read().unwrap().voxels, *chunk_coord, &self.chunks);
-                    {
-                        chunk.write().unwrap().occlusion_map = occlusion_map;
-                    }
-                }*/
+            if self.meshes.contains_key(&chunk_coord) {
                 return;
-            } else {
-                let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &self.chunks);
-                self.chunks.add(chunk_coord, chunk.clone());
-                if chunk.is_empty {
-                    self.meshes.insert(chunk_coord, Lazy::val(Mesh::new()));
-                    return;
-                }
-                occlusion_map = chunk.occlusion_map;
-                voxels = chunk.voxels;
             }
-
-            // let noise = noise.clone();
-
-            // let chunks = self.chunks.clone();
+            let chunk_coord = chunk_coord.clone();
+            let noise = noise.clone();
+            let chunks = self.chunks.clone();
 
             let (lazy_mesh, s) = Lazy::open();
             self.meshes.insert(chunk_coord, lazy_mesh);
 
-            threadpool.dynamic_priority(move || {
-                let now = Instant::now();
-                let result = Box::new(crate::server::chunk::generate_mesh_without_cam_occ(
-                    &voxels,
-                    chunk_coord,
-                    occlusion_map,
-                ));
-                _ = s.send(result);
-                // print_msg(now, chunk_coord)
-            });
+            threadpool
+                .add_priority(move || {
+                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
+                    chunks.add(chunk_coord, chunk.clone());
+                    if chunk.is_empty {
+                        _ = s.send(Box::new(Mesh::new()));
+                    } else {
+                        _ = s.send(Box::new(
+                            crate::server::chunk::generate_mesh_without_cam_occ(
+                                &chunk.voxels,
+                                chunk_coord,
+                                chunk.occlusion_map,
+                            ),
+                        ));
+                    }
+                })
+                .map_or_else(|| (), |task| task());
         });
         points.iter().for_each(|chunk_coord| {
             let lazy_mesh = self.meshes.get_mut(chunk_coord).unwrap();
@@ -155,9 +147,10 @@ impl Chunks {
         Self(RwLock::new(HashMap::new()))
     }
     pub fn get(&self, pos: IVec3) -> Option<Arc<RwLock<Chunk>>> {
-        let chunks_guard = self.0.read().unwrap();
-
-        return chunks_guard.get(&pos).cloned();
+        return self.0.read().unwrap().get(&pos).cloned();
+    }
+    pub fn contains(&self, pos: IVec3) -> bool {
+        return self.0.read().unwrap().contains_key(&pos);
     }
     pub fn add(&self, pos: IVec3, chunk: Chunk) {
         self.0

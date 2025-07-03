@@ -5,6 +5,11 @@ pub enum Lazy<T> {
     Val(Box<T>),
     Waiting(Receiver<Box<T>>),
 }
+#[derive(Clone, Copy)]
+pub enum Status {
+    Waiting,
+    Received,
+}
 impl<T> Lazy<T> {
     pub fn open() -> (Self, Sender<Box<T>>) {
         let (s, r) = bounded(1);
@@ -13,7 +18,7 @@ impl<T> Lazy<T> {
     pub fn val(val: T) -> Self {
         Self::Val(Box::new(val))
     }
-    pub fn get(&mut self) -> &T {
+    pub fn block_on(&mut self) -> &T {
         match self {
             Self::Val(ref val) => val,
             Self::Waiting(recv) => {
@@ -33,7 +38,7 @@ impl<T> Lazy<T> {
                 let val = match recv.try_recv() {
                     Ok(val) => val,
                     Err(TryRecvError::Empty) => return None,
-                    _ => unreachable!(),
+                    Err(TryRecvError::Disconnected) => panic!("is disconnected"),
                 };
                 *self = Lazy::Val(val);
                 if let Self::Val(val) = self {
@@ -44,14 +49,14 @@ impl<T> Lazy<T> {
             }
         }
     }
-    pub fn poll(&mut self) -> bool {
+    pub fn check(&mut self) -> Status {
         if let Self::Waiting(recv) = self {
             if let Ok(val) = recv.try_recv() {
                 *self = Lazy::Val(val);
             } else {
-                return false;
+                return Status::Waiting;
             }
         }
-        true
+        Status::Received
     }
 }
