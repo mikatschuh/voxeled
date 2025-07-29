@@ -2,6 +2,7 @@ pub mod camera;
 pub mod camera_controller;
 pub mod instance;
 // pub mod exotic_cameras;
+mod buffer_pool;
 pub mod mesh;
 mod shader;
 mod texture;
@@ -17,6 +18,8 @@ use pollster::block_on;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::event_loop::EventLoopWindowTarget;
+
+use crate::gpu::buffer_pool::BufferPool;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a, CC: CameraController, C>
@@ -60,9 +63,9 @@ where
     index_buffer: wgpu::Buffer,
     num_indices: u32,
 
-    max_buffer_size: usize,
+    max_instances: usize,
     mesh: Mesh,
-    instance_buffer: wgpu::Buffer,
+    instance_buffer_pool: BufferPool,
 }
 
 impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
@@ -172,9 +175,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         let orientation_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Orientation Buffer"),
             contents: bytemuck::cast_slice(&[0_u32]),
-            usage: wgpu::BufferUsages::MAP_WRITE
-                | wgpu::BufferUsages::UNIFORM
-                | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -275,24 +276,17 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             contents: bytemuck::cast_slice(&Vertex::indices()),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let max_buffer_size = 268435456 / size_of::<Instance>(); //device.limits().max_buffer_size as usize;
+        let max_buffer_size = 268435456; //device.limits().max_buffer_size as usize;
+        let max_instances = 268435456 / size_of::<Instance>();
 
-        let mut mesh = Mesh::with_capacity(max_buffer_size * 6);
-        (0..max_buffer_size)
-            .for_each(|_| mesh.add_nx(IVec3::new(0, -1_000_000, 0), texture_set::Texture::Stone));
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&mesh.nx),
-            usage: wgpu::BufferUsages::MAP_WRITE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-        });
+        let mesh = Mesh::with_capacity(max_buffer_size * 6);
+        let instance_buffer_pool = BufferPool::new(&device, 6, max_buffer_size);
 
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
             _phantom: std::marker::PhantomData,
-            max_buffer_size,
+            max_instances,
             diffuse_bind_group: {
                 let texture = Texture::from_images(
                     &device,
@@ -399,7 +393,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
                     front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Front),
+                    cull_mode: Some(wgpu::Face::Front), // DEBUG: Culling komplett deaktiviert
                     // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                     polygon_mode: wgpu::PolygonMode::Fill,
                     // Requires Features::DEPTH_CLIP_CONTROL
@@ -480,7 +474,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             vertex_buffer,
             index_buffer,
             mesh,
-            instance_buffer,
+            instance_buffer_pool,
             num_indices: 6,
         }
     }
@@ -637,74 +631,9 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            /////////////////////////////////// Baustelle //////////////////////////////
-            /*
-            struct DrawChunk {
-                indirect_buffer: wgpu::Buffer,
-                instance_buffer: wgpu::Buffer,
-                orientation_value: u32, // zur Bindgroup-Setzung o.ä.
-                num_instances: u32,
-            }
-            let mut chunks_to_draw: Vec<DrawChunk> = vec![];
-
-            for (orientation, instances) in [
-                (0, &self.mesh.nx),
-                (1, &self.mesh.px),
-                (2, &self.mesh.ny),
-                (3, &self.mesh.py),
-                (4, &self.mesh.nz),
-                (5, &self.mesh.pz),
-            ] {
-                for chunk in instances.chunks(self.max_buffer_size) {
-                    let instance_bytes = bytemuck::cast_slice(chunk);
-
-                    // Instance buffer
-                    let instance_buffer =
-                        self.device
-                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some("InstanceBuffer"),
-                                contents: instance_bytes,
-                                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                            });
-
-                    // Indirect draw info
-                    let draw = DrawIndexedIndirect {
-                        index_count: self.num_indices,
-                        instance_count: chunk.len() as u32,
-                        base_index: 0,
-                        vertex_offset: 0,
-                        first_instance: 0,
-                    };
-
-                    let indirect_buffer =
-                        self.device
-                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some("DrawIndirectBuffer"),
-                                contents: bytemuck::bytes_of(&draw),
-                                usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-                            });
-
-                    chunks_to_draw.push(DrawChunk {
-                        indirect_buffer,
-                        instance_buffer,
-                        orientation_value: orientation,
-                        num_instances: chunk.len() as u32,
-                    });
-                }
-            }
-            for chunk in &chunks_to_draw {
-                render_pass.set_vertex_buffer(1, chunk.instance_buffer.slice(..));
-
-                // Beispiel: wenn du die Orientierung in Push-Constants gibst
-                render_pass.set_bind_group(1, &self.orientation_b, &[]);
-
-                render_pass.draw_indexed_indirect(&chunk.indirect_buffer, 0);
-            }
-            */
+            self.instance_buffer_pool.new_session();
             for (orientation, instances) in [
                 (0, &self.mesh.nx),
                 (1, &self.mesh.px),
@@ -715,14 +644,27 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             ]
             .into_iter()
             {
-                for chunk in instances.chunks(self.max_buffer_size) {
-                    // 3. Zeichnen
+                for chunk in instances.chunks(self.max_instances) {
+                    self.queue.write_buffer(
+                        &self.orientation_buffer,
+                        0,
+                        bytemuck::cast_slice(&[orientation]),
+                    );
                     render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+
+                    render_pass.set_vertex_buffer(
+                        1,
+                        self.instance_buffer_pool.use_buffer(
+                            &self.device,
+                            &self.queue,
+                            bytemuck::cast_slice(&chunk),
+                        ),
+                    );
+
                     render_pass.draw_indexed(0..self.num_indices, 0, 0..chunk.len() as _);
                 }
             }
         }
-        /////////////////////////////////// Baustelle //////////////////////////////
 
         // Zweiter Render-Pass: Post-Processing mit der ersten Textur als Input
         {

@@ -5,6 +5,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::WindowId,
 };
+const TOUCH_PAD_SENSITIVITY: f32 = 0.05;
 /// Enthält den Zustand einer Taste.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum InputState {
@@ -191,8 +192,8 @@ impl InputEventFilter {
                     }
                     MouseScrollDelta::PixelDelta(delta) => {
                         self.mouse_wheel = PhysicalPosition::new(
-                            self.mouse_wheel.x + delta.x as f32,
-                            self.mouse_wheel.y + delta.y as f32,
+                            self.mouse_wheel.x + delta.x as f32 * TOUCH_PAD_SENSITIVITY,
+                            self.mouse_wheel.y + delta.y as f32 * TOUCH_PAD_SENSITIVITY,
                         )
                     }
                 },

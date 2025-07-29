@@ -107,7 +107,7 @@ fn main() {
                                         &mut threadpool,
                                     );
                                     // println!("time it took to build mesh in total: {:#?}", now.elapsed());
-                                    drawer.draw(control_flow);
+                                    block_on(drawer.draw(control_flow));
                                 }
                                 drawer.window.request_redraw(); // This tells winit that we want another frame after this one
                                 frame_number += 1
