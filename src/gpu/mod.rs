@@ -31,6 +31,7 @@ where
     // bind groups:
     diffuse_bind_group: wgpu::BindGroup,
     camera_bind_group: wgpu::BindGroup,
+    orientation_bind_group_layout: wgpu::BindGroupLayout,
 
     // rendering stuff:
     surface: wgpu::Surface<'a>,
@@ -56,7 +57,7 @@ where
 
     pub camera: &'a mut C,
     camera_buffer: wgpu::Buffer,
-    orientation_buffer: wgpu::Buffer,
+    orientation_buffers: [wgpu::Buffer; 6],
 
     // Asset things:
     vertex_buffer: wgpu::Buffer,
@@ -172,36 +173,65 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             ),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let orientation_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Orientation Buffer"),
-            contents: bytemuck::cast_slice(&[0_u32]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let orientation_buffers = [
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Orientation Buffer"),
+                contents: bytemuck::cast_slice(&[0]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Orientation Buffer"),
+                contents: bytemuck::cast_slice(&[1]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Orientation Buffer"),
+                contents: bytemuck::cast_slice(&[2]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Orientation Buffer"),
+                contents: bytemuck::cast_slice(&[3]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Orientation Buffer"),
+                contents: bytemuck::cast_slice(&[4]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Orientation Buffer"),
+                contents: bytemuck::cast_slice(&[5]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+        ];
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::all(),
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                    count: None,
+                }],
+                label: Some("Camera Bind Group Layout"),
+            });
+        let orientation_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                ],
-                label: Some("camera_bind_group_layout"),
+                    count: None,
+                }],
+                label: Some("Orientation Bind Group Layout"),
             });
         let render_target_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -314,19 +344,12 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             },
             camera_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &camera_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: camera_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: orientation_buffer.as_entire_binding(),
-                    },
-                ],
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }],
                 label: Some("camera_bind_group"),
             }),
-
             render_target_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &render_target_bind_group_layout,
                 entries: &[
@@ -355,6 +378,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                         bind_group_layouts: &[
                             &texture_bind_group_layout,
                             &camera_bind_group_layout,
+                            &orientation_bind_group_layout,
                         ],
                         push_constant_ranges: &[wgpu::PushConstantRange {
                             stages: wgpu::ShaderStages::VERTEX,
@@ -466,11 +490,12 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             ),
             depth_texture_bind_group_layout,
             render_target_bind_group_layout,
+            orientation_bind_group_layout,
             device,
             config,
             camera,
             camera_buffer,
-            orientation_buffer,
+            orientation_buffers,
             vertex_buffer,
             index_buffer,
             mesh,
@@ -644,14 +669,19 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             ]
             .into_iter()
             {
+                render_pass.set_bind_group(
+                    2,
+                    &self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        layout: &self.orientation_bind_group_layout,
+                        entries: &[wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: self.orientation_buffers[orientation].as_entire_binding(),
+                        }],
+                        label: Some("Orientation Buffer Bind Group"),
+                    }),
+                    &[],
+                );
                 for chunk in instances.chunks(self.max_instances) {
-                    self.queue.write_buffer(
-                        &self.orientation_buffer,
-                        0,
-                        bytemuck::cast_slice(&[orientation]),
-                    );
-                    render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-
                     render_pass.set_vertex_buffer(
                         1,
                         self.instance_buffer_pool.use_buffer(

@@ -4,7 +4,7 @@ struct CameraUniform {
 @group(1) @binding(0)
 var<uniform> camera: CameraUniform;
 
-@group(1) @binding(1)
+@group(2) @binding(0)
 var<uniform> orientation: u32;
 
 struct VertexInput {

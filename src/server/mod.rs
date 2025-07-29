@@ -86,6 +86,7 @@ impl Server {
             aspect_ratio,
             render_distance,
         );
+        let cam_chunk_pos: IVec3 = cam_pos.as_ivec3() >> 5;
         points.sort_by(|a, b| a.y.cmp(&b.y).reverse());
         points.iter().for_each(|chunk_coord| {
             if self.meshes.contains_key(&chunk_coord) {
@@ -120,7 +121,24 @@ impl Server {
         points.iter().for_each(|chunk_coord| {
             let lazy_mesh = self.meshes.get_mut(chunk_coord).unwrap();
             if let Some(chunk_mesh) = lazy_mesh.try_get() {
-                mesh += chunk_mesh.clone();
+                if cam_chunk_pos.x <= chunk_coord.x {
+                    mesh.nx.append(&mut chunk_mesh.nx.clone())
+                }
+                if cam_chunk_pos.x >= chunk_coord.x {
+                    mesh.px.append(&mut chunk_mesh.px.clone())
+                }
+                if cam_chunk_pos.y <= chunk_coord.y {
+                    mesh.ny.append(&mut chunk_mesh.ny.clone())
+                }
+                if cam_chunk_pos.y >= chunk_coord.y {
+                    mesh.py.append(&mut chunk_mesh.py.clone())
+                }
+                if cam_chunk_pos.z <= chunk_coord.z {
+                    mesh.nz.append(&mut chunk_mesh.nz.clone())
+                }
+                if cam_chunk_pos.z >= chunk_coord.z {
+                    mesh.pz.append(&mut chunk_mesh.pz.clone())
+                }
             }
         });
         // println!("frame done, size of mesh: {} kB", (mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>() + mesh.indices.len() * 4) / 1000);
