@@ -193,7 +193,7 @@ impl InputEventFilter {
                     MouseScrollDelta::PixelDelta(delta) => {
                         self.mouse_wheel = PhysicalPosition::new(
                             self.mouse_wheel.x + delta.x as f32 * TOUCH_PAD_SENSITIVITY,
-                            self.mouse_wheel.y + delta.y as f32 * TOUCH_PAD_SENSITIVITY,
+                            self.mouse_wheel.y - delta.y as f32 * TOUCH_PAD_SENSITIVITY,
                         )
                     }
                 },
