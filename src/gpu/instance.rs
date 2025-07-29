@@ -1,19 +1,17 @@
 use glam::IVec3;
 
-use crate::gpu::texture_set;
-
 /// The kind states the orientation and the texture.
 /// It has the following layout:
 /// ```
-///                                           |texture        |orientation
+///                                                          texture|
 /// |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|
 /// ```
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Instance {
-    pos: IVec3,
-    kind: u32,
+    pub pos: IVec3,
+    pub kind: u32,
 }
 unsafe impl bytemuck::Pod for Instance {}
 unsafe impl bytemuck::Zeroable for Instance {}
@@ -43,42 +41,6 @@ impl Instance {
                     format: wgpu::VertexFormat::Uint32,
                 },
             ],
-        }
-    }
-    pub fn face_nx(pos: IVec3, texture: texture_set::Texture) -> Self {
-        Self {
-            pos,
-            kind: (texture as u32) << 3 | 0,
-        }
-    }
-    pub fn face_px(pos: IVec3, texture: texture_set::Texture) -> Self {
-        Self {
-            pos,
-            kind: (texture as u32) << 3 | 1,
-        }
-    }
-    pub fn face_ny(pos: IVec3, texture: texture_set::Texture) -> Self {
-        Self {
-            pos,
-            kind: (texture as u32) << 3 | 2,
-        }
-    }
-    pub fn face_py(pos: IVec3, texture: texture_set::Texture) -> Self {
-        Self {
-            pos,
-            kind: (texture as u32) << 3 | 3,
-        }
-    }
-    pub fn face_nz(pos: IVec3, texture: texture_set::Texture) -> Self {
-        Self {
-            pos,
-            kind: (texture as u32) << 3 | 4,
-        }
-    }
-    pub fn face_pz(pos: IVec3, texture: texture_set::Texture) -> Self {
-        Self {
-            pos,
-            kind: (texture as u32) << 3 | 5,
         }
     }
 }

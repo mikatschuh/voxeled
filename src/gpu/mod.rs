@@ -13,6 +13,7 @@ use camera_controller::CameraController;
 use glam::IVec3;
 use instance::Instance;
 use mesh::*;
+use pollster::block_on;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::event_loop::EventLoopWindowTarget;
@@ -52,6 +53,7 @@ where
 
     pub camera: &'a mut C,
     camera_buffer: wgpu::Buffer,
+    orientation_buffer: wgpu::Buffer,
 
     // Asset things:
     vertex_buffer: wgpu::Buffer,
@@ -82,6 +84,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         });
 
         let surface = instance.create_surface(window).unwrap();
+        let required_features = wgpu::Features::PUSH_CONSTANTS;
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -91,19 +94,24 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             })
             .await
             .unwrap();
-        let future = adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
-                // WebGL doesn't support all of wgpu's features, so if
-                // we're building for the web, we'll have to disable some.
-                required_limits: if cfg!(target_arch = "wasm32") {
-                    wgpu::Limits::downlevel_webgl2_defaults()
-                } else {
-                    wgpu::Limits::default()
-                },
-                label: None,
-                memory_hints: Default::default(),
+        let adapter_features = adapter.features();
+
+        assert!(
+            adapter_features.contains(required_features),
+            "Push constants nicht unterstützt auf diesem Gerät!"
+        );
+
+        let device_descriptor = wgpu::DeviceDescriptor {
+            required_features: required_features,
+            required_limits: wgpu::Limits {
+                max_push_constant_size: 4, // mind. 4, meist 128
+                ..Default::default()
             },
+            ..Default::default()
+        };
+
+        let future = adapter.request_device(
+            &device_descriptor,
             None, // Trace path
         );
         let surface_caps = surface.get_capabilities(&adapter);
@@ -161,18 +169,37 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             ),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+        let orientation_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Orientation Buffer"),
+            contents: bytemuck::cast_slice(&[0_u32]),
+            usage: wgpu::BufferUsages::MAP_WRITE
+                | wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_DST,
+        });
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::all(),
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
                 label: Some("camera_bind_group_layout"),
             });
         let render_target_bind_group_layout =
@@ -250,13 +277,15 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         });
         let max_buffer_size = 268435456 / size_of::<Instance>(); //device.limits().max_buffer_size as usize;
 
-        let instances: Vec<Instance> = (0..max_buffer_size)
-            .map(|_| Instance::face_ny(IVec3::new(0, -1_000_000, 0), texture_set::Texture::Stone))
-            .collect();
+        let mut mesh = Mesh::with_capacity(max_buffer_size * 6);
+        (0..max_buffer_size)
+            .for_each(|_| mesh.add_nx(IVec3::new(0, -1_000_000, 0), texture_set::Texture::Stone));
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instances),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            contents: bytemuck::cast_slice(&mesh.nx),
+            usage: wgpu::BufferUsages::MAP_WRITE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
         });
 
         let render_target = Texture::create_rendering_target(&device, &config);
@@ -291,12 +320,19 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             },
             camera_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &camera_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }],
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: orientation_buffer.as_entire_binding(),
+                    },
+                ],
                 label: Some("camera_bind_group"),
             }),
+
             render_target_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &render_target_bind_group_layout,
                 entries: &[
@@ -326,7 +362,10 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                             &texture_bind_group_layout,
                             &camera_bind_group_layout,
                         ],
-                        push_constant_ranges: &[],
+                        push_constant_ranges: &[wgpu::PushConstantRange {
+                            stages: wgpu::ShaderStages::VERTEX,
+                            range: 0..4, // z.B. ein einzelnes u32
+                        }],
                     }),
                 ),
                 vertex: wgpu::VertexState {
@@ -437,9 +476,10 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             config,
             camera,
             camera_buffer,
+            orientation_buffer,
             vertex_buffer,
             index_buffer,
-            mesh: Mesh { instances },
+            mesh,
             instance_buffer,
             num_indices: 6,
         }
@@ -534,8 +574,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     /// # Errors
     ///
-    pub fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
-        match self.try_draw() {
+    pub async fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
+        match block_on(self.try_draw()) {
             Ok(_) => {}
             // Reconfigure the surface if it's lost or outdated
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => self.reconfigure(),
@@ -551,7 +591,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             }
         }
     }
-    fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
+    async fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
@@ -600,12 +640,89 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            for chunk in self.mesh.instances.chunks(self.max_buffer_size) {
-                self.queue
-                    .write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(chunk));
-                render_pass.draw_indexed(0..self.num_indices, 0, 0..chunk.len() as _);
+
+            /////////////////////////////////// Baustelle //////////////////////////////
+            /*
+            struct DrawChunk {
+                indirect_buffer: wgpu::Buffer,
+                instance_buffer: wgpu::Buffer,
+                orientation_value: u32, // zur Bindgroup-Setzung o.ä.
+                num_instances: u32,
+            }
+            let mut chunks_to_draw: Vec<DrawChunk> = vec![];
+
+            for (orientation, instances) in [
+                (0, &self.mesh.nx),
+                (1, &self.mesh.px),
+                (2, &self.mesh.ny),
+                (3, &self.mesh.py),
+                (4, &self.mesh.nz),
+                (5, &self.mesh.pz),
+            ] {
+                for chunk in instances.chunks(self.max_buffer_size) {
+                    let instance_bytes = bytemuck::cast_slice(chunk);
+
+                    // Instance buffer
+                    let instance_buffer =
+                        self.device
+                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                label: Some("InstanceBuffer"),
+                                contents: instance_bytes,
+                                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                            });
+
+                    // Indirect draw info
+                    let draw = DrawIndexedIndirect {
+                        index_count: self.num_indices,
+                        instance_count: chunk.len() as u32,
+                        base_index: 0,
+                        vertex_offset: 0,
+                        first_instance: 0,
+                    };
+
+                    let indirect_buffer =
+                        self.device
+                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                label: Some("DrawIndirectBuffer"),
+                                contents: bytemuck::bytes_of(&draw),
+                                usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+                            });
+
+                    chunks_to_draw.push(DrawChunk {
+                        indirect_buffer,
+                        instance_buffer,
+                        orientation_value: orientation,
+                        num_instances: chunk.len() as u32,
+                    });
+                }
+            }
+            for chunk in &chunks_to_draw {
+                render_pass.set_vertex_buffer(1, chunk.instance_buffer.slice(..));
+
+                // Beispiel: wenn du die Orientierung in Push-Constants gibst
+                render_pass.set_bind_group(1, &self.orientation_b, &[]);
+
+                render_pass.draw_indexed_indirect(&chunk.indirect_buffer, 0);
+            }
+            */
+            for (orientation, instances) in [
+                (0, &self.mesh.nx),
+                (1, &self.mesh.px),
+                (2, &self.mesh.ny),
+                (3, &self.mesh.py),
+                (4, &self.mesh.nz),
+                (5, &self.mesh.pz),
+            ]
+            .into_iter()
+            {
+                for chunk in instances.chunks(self.max_buffer_size) {
+                    // 3. Zeichnen
+                    render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                    render_pass.draw_indexed(0..self.num_indices, 0, 0..chunk.len() as _);
+                }
             }
         }
+        /////////////////////////////////// Baustelle //////////////////////////////
 
         // Zweiter Render-Pass: Post-Processing mit der ersten Textur als Input
         {
@@ -642,3 +759,14 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         Ok(())
     }
 }
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct DrawIndexedIndirect {
+    index_count: u32,
+    instance_count: u32,
+    base_index: u32,
+    vertex_offset: i32,
+    first_instance: u32,
+}
+unsafe impl bytemuck::Pod for DrawIndexedIndirect {}
+unsafe impl bytemuck::Zeroable for DrawIndexedIndirect {}

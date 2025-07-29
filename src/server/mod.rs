@@ -102,6 +102,7 @@ impl Server {
                 .add_priority(move || {
                     let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
                     chunks.add(chunk_coord, chunk.clone());
+
                     if chunk.is_empty {
                         _ = s.send(Box::new(Mesh::new()));
                     } else {
@@ -142,6 +143,7 @@ fn print_msg(start: Instant, chunk_coord: IVec3) {
 }
 #[derive(Debug)]
 pub struct Chunks(RwLock<HashMap<IVec3, Arc<RwLock<Chunk>>>>);
+
 impl Chunks {
     fn new() -> Self {
         Self(RwLock::new(HashMap::new()))
@@ -157,6 +159,24 @@ impl Chunks {
             .write()
             .unwrap()
             .insert(pos, Arc::new(RwLock::new(chunk)));
+    }
+    pub fn for_all_neighbors(&self, pos: IVec3) -> std::vec::IntoIter<Arc<RwLock<Chunk>>> {
+        let mut chunks: Vec<Arc<RwLock<Chunk>>> = vec![];
+        for neighbor in [
+            IVec3::new(1, 0, 0),
+            IVec3::new(-1, 0, 0),
+            IVec3::new(0, 1, 0),
+            IVec3::new(0, -1, 0),
+            IVec3::new(0, 0, 1),
+            IVec3::new(0, 0, -1),
+        ]
+        .into_iter()
+        {
+            if let Some(chunk) = self.get(neighbor) {
+                chunks.push(chunk)
+            }
+        }
+        chunks.into_iter()
     }
 }
 

@@ -6,6 +6,7 @@ use gpu::{
     camera::{Camera, Camera3d},
     camera_controller::{CameraController, SmoothController},
 };
+use pollster::block_on;
 use server::Server;
 use winit::{
     dpi::PhysicalSize,
@@ -61,7 +62,7 @@ fn main() {
     let noise = Arc::new(random::AnimatedNoise::new(
         seed as u32, // Seed für Reproduzierbarkeit
         1.0,         // time_scale - kleinere Werte = langsamere Animation
-        0.1,         // space_scale - kleinere Werte = größere Strukturen
+        0.03,        // space_scale - kleinere Werte = größere Strukturen
     ));
     println!("world seed: {:16x}", seed);
     let mut world = Server::new();
@@ -95,7 +96,7 @@ fn main() {
                                 threadpool.update();
 
                                 if frame_number == 0 {
-                                    drawer.draw(control_flow)
+                                    block_on(drawer.draw(control_flow))
                                 } else {
                                     update(
                                         &mut input_event_filter,

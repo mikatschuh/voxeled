@@ -90,10 +90,12 @@ impl Chunk {
                     0.0,
                     (z as i32 + pos.z * 32) as f64,
                     time,
-                    5,
+                    10,
                 );
                 for y in 0..32 {
-                    voxels[x][y][z] = if y as i32 + pos.y * 32 > (height * height * 100.0) as i32 {
+                    voxels[x][y][z] = if y as i32 + pos.y * 32
+                        > (height * height * height * height * 200.0) as i32
+                    {
                         empty = false;
                         VoxelType::random_weighted()
                     } else {
@@ -309,7 +311,7 @@ pub fn map_visible(
     faces
 }
 
-use crate::gpu::{instance::Instance, mesh::Mesh};
+use crate::gpu::mesh::Mesh;
 pub fn generate_mesh(
     cam_pos: Vec3,
     voxels: &[[[VoxelType; 32]; 32]; 32],
@@ -325,22 +327,22 @@ pub fn generate_mesh(
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x < position.x as f32 {
-                    mesh += Instance::face_nx(position, voxels[x][y][z].texture())
+                    mesh.add_nx(position, voxels[x][y][z].texture())
                 }
                 if faces[1].0[y][z] & (MASK_BIT >> x) > 0 && cam_pos.x > position.x as f32 + 0.9 {
-                    mesh += Instance::face_px(position, voxels[x][y][z].texture())
+                    mesh.add_px(position, voxels[x][y][z].texture())
                 }
                 if faces[2].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y < position.y as f32 {
-                    mesh += Instance::face_ny(position, voxels[x][y][z].texture())
+                    mesh.add_ny(position, voxels[x][y][z].texture())
                 }
                 if faces[3].0[z][x] & (MASK_BIT >> y) > 0 && cam_pos.y > position.y as f32 + 0.9 {
-                    mesh += Instance::face_py(position, voxels[x][y][z].texture())
+                    mesh.add_py(position, voxels[x][y][z].texture())
                 }
                 if faces[4].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z < position.z as f32 {
-                    mesh += Instance::face_nz(position, voxels[x][y][z].texture())
+                    mesh.add_nz(position, voxels[x][y][z].texture())
                 }
                 if faces[5].0[x][y] & (MASK_BIT >> z) > 0 && cam_pos.z > position.z as f32 + 0.9 {
-                    mesh += Instance::face_pz(position, voxels[x][y][z].texture())
+                    mesh.add_pz(position, voxels[x][y][z].texture())
                 }
             }
         }
@@ -361,22 +363,22 @@ pub fn generate_mesh_without_cam_occ(
 
                 const MASK_BIT: u32 = 1_u32 << 31;
                 if faces[0].0[y][z] & (MASK_BIT >> x) > 0 {
-                    mesh += Instance::face_nx(position, voxels[x][y][z].texture())
+                    mesh.add_nx(position, voxels[x][y][z].texture())
                 }
                 if faces[1].0[y][z] & (MASK_BIT >> x) > 0 {
-                    mesh += Instance::face_px(position, voxels[x][y][z].texture())
+                    mesh.add_px(position, voxels[x][y][z].texture())
                 }
                 if faces[2].0[z][x] & (MASK_BIT >> y) > 0 {
-                    mesh += Instance::face_ny(position, voxels[x][y][z].texture())
+                    mesh.add_ny(position, voxels[x][y][z].texture())
                 }
                 if faces[3].0[z][x] & (MASK_BIT >> y) > 0 {
-                    mesh += Instance::face_py(position, voxels[x][y][z].texture())
+                    mesh.add_py(position, voxels[x][y][z].texture())
                 }
                 if faces[4].0[x][y] & (MASK_BIT >> z) > 0 {
-                    mesh += Instance::face_nz(position, voxels[x][y][z].texture())
+                    mesh.add_nz(position, voxels[x][y][z].texture())
                 }
                 if faces[5].0[x][y] & (MASK_BIT >> z) > 0 {
-                    mesh += Instance::face_pz(position, voxels[x][y][z].texture())
+                    mesh.add_pz(position, voxels[x][y][z].texture())
                 }
             }
         }

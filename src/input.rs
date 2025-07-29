@@ -187,12 +187,12 @@ impl InputEventFilter {
                 WindowEvent::MouseWheel { delta, .. } => match delta {
                     MouseScrollDelta::LineDelta(x, y) => {
                         self.mouse_wheel =
-                            PhysicalPosition::new(self.mouse_wheel.x + *x, self.mouse_wheel.y - *y)
+                            PhysicalPosition::new(self.mouse_wheel.x + *x, self.mouse_wheel.y + *y)
                     }
                     MouseScrollDelta::PixelDelta(delta) => {
                         self.mouse_wheel = PhysicalPosition::new(
                             self.mouse_wheel.x + delta.x as f32,
-                            self.mouse_wheel.y - delta.y as f32,
+                            self.mouse_wheel.y + delta.y as f32,
                         )
                     }
                 },

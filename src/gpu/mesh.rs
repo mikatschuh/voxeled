@@ -1,35 +1,98 @@
+use glam::IVec3;
+
+use crate::gpu::texture_set::Texture;
+
 use super::instance::Instance;
 
 #[derive(Debug, Clone)]
 pub struct Mesh {
-    pub instances: Vec<Instance>,
+    pub nx: Vec<Instance>,
+    pub px: Vec<Instance>,
+    pub ny: Vec<Instance>,
+    pub py: Vec<Instance>,
+    pub nz: Vec<Instance>,
+    pub pz: Vec<Instance>,
 }
 use std::ops;
 impl ops::AddAssign<Self> for Mesh {
     fn add_assign(&mut self, mut other: Self) {
-        self.instances.append(&mut other.instances);
-    }
-}
-impl ops::AddAssign<Instance> for Mesh {
-    fn add_assign(&mut self, other: Instance) {
-        self.instances.push(other)
+        self.nx.append(&mut other.nx);
+        self.px.append(&mut other.px);
+        self.ny.append(&mut other.ny);
+        self.py.append(&mut other.py);
+        self.nz.append(&mut other.nz);
+        self.pz.append(&mut other.pz);
     }
 }
 impl ops::Add for Mesh {
     type Output = Self;
     fn add(mut self, mut other: Self) -> Self {
-        self.instances.append(&mut other.instances);
+        self.nx.append(&mut other.nx);
+        self.px.append(&mut other.px);
+        self.ny.append(&mut other.ny);
+        self.py.append(&mut other.py);
+        self.nz.append(&mut other.nz);
+        self.pz.append(&mut other.pz);
         self
     }
 }
 impl Mesh {
     pub fn new() -> Self {
-        Self { instances: vec![] }
+        Self {
+            nx: vec![],
+            px: vec![],
+            ny: vec![],
+            py: vec![],
+            nz: vec![],
+            pz: vec![],
+        }
     }
     pub fn with_capacity(capacity: usize) -> Self {
+        let ind_capacity = capacity;
         Self {
-            instances: Vec::with_capacity(capacity),
+            nx: Vec::with_capacity(ind_capacity),
+            px: Vec::with_capacity(ind_capacity),
+            ny: Vec::with_capacity(ind_capacity),
+            py: Vec::with_capacity(ind_capacity),
+            nz: Vec::with_capacity(ind_capacity),
+            pz: Vec::with_capacity(ind_capacity),
         }
+    }
+    pub fn add_nx(&mut self, pos: IVec3, texture: Texture) {
+        self.nx.push(Instance {
+            pos,
+            kind: texture as u32,
+        });
+    }
+    pub fn add_px(&mut self, pos: IVec3, texture: Texture) {
+        self.px.push(Instance {
+            pos,
+            kind: texture as u32,
+        });
+    }
+    pub fn add_ny(&mut self, pos: IVec3, texture: Texture) {
+        self.ny.push(Instance {
+            pos,
+            kind: texture as u32,
+        });
+    }
+    pub fn add_py(&mut self, pos: IVec3, texture: Texture) {
+        self.py.push(Instance {
+            pos,
+            kind: texture as u32,
+        });
+    }
+    pub fn add_nz(&mut self, pos: IVec3, texture: Texture) {
+        self.nz.push(Instance {
+            pos,
+            kind: texture as u32,
+        });
+    }
+    pub fn add_pz(&mut self, pos: IVec3, texture: Texture) {
+        self.pz.push(Instance {
+            pos,
+            kind: texture as u32,
+        });
     }
 }
 #[repr(C)]
