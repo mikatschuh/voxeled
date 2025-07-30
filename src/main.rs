@@ -139,7 +139,7 @@ pub fn update(
     drawer.update(&key_map);
 
     let now = Instant::now();
-    generator.write().unwrap().vertical_area *= 1.001;
+    generator.write().unwrap().vertical_area *= 1.0001;
     drawer.update_mesh(server.get_mesh(
         cam_pos,
         cam_dir,

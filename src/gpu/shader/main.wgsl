@@ -39,8 +39,6 @@ fn vs_main(
         out.tex_coords = vec2(1.0, 0.0);
     }
 
-
-
     var vertex_position: vec3<f32>;
     if orientation == 0u {                            // 0
         if model.kind == 0u {

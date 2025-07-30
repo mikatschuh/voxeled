@@ -28,10 +28,10 @@ impl<C: Default> Default for Camera<C> {
     }
 }
 impl<C: CameraController> Camera3d<C> for Camera<C> {
-    const NEAR_PLANE: f32 = 0.001;
+    const NEAR_PLANE: f32 = 0.1;
     const FAR_PLANE: f32 = 1000.0;
 
-    const FOV: f32 = std::f32::consts::PI * 0.75; // std::f32::consts::FRAC_PI_2;
+    const FOV: f32 = std::f32::consts::FRAC_PI_2;
 
     fn new(pos: Vec3, dir: Vec3, delta_time: crate::time::DeltaTime) -> Self {
         Self {
