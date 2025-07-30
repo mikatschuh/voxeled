@@ -90,11 +90,11 @@ impl Chunk {
                     0.0,
                     (z as i32 + pos.z * 32) as f64,
                     time,
-                    10,
+                    4,
                 );
                 for y in 0..32 {
                     voxels[x][y][z] = if y as i32 + pos.y * 32
-                        > (height * height * height * height * 200.0) as i32
+                        > (height * height * height * height * 1000.0) as i32
                     {
                         empty = false;
                         VoxelType::random_weighted()

@@ -62,7 +62,7 @@ fn main() {
     let noise = Arc::new(random::AnimatedNoise::new(
         seed as u32, // Seed für Reproduzierbarkeit
         1.0,         // time_scale - kleinere Werte = langsamere Animation
-        0.06,        // space_scale - kleinere Werte = größere Strukturen
+        0.07,        // space_scale - kleinere Werte = größere Strukturen
     ));
     println!("world seed: {:16x}", seed);
     let mut world = Server::new();
@@ -148,7 +148,7 @@ pub fn update(
         cam_dir,
         Camera::<SmoothController>::FOV,
         drawer.window.aspect_ratio,
-        12,
+        16,
         noise.clone(),
         elapsed_time,
         threadpool,

@@ -50,16 +50,18 @@ impl AnimatedNoise {
         let z = z * self.space_scale;
 
         let mut value = 0.0;
+        let mut max_value = 0.0;
         let mut amplitude = 1.0;
         let mut frequency = 1.0;
         let persistence = 0.5;
 
         for _ in 0..octaves {
-            value += self.get(x * frequency, y * frequency, z, time) * amplitude;
+            value += self.get(x * frequency, y, z * frequency, time) * amplitude;
+            max_value += amplitude;
             amplitude *= persistence;
             frequency *= 2.0;
         }
 
-        value
+        value / max_value
     }
 }
