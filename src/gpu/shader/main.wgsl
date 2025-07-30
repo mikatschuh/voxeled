@@ -19,6 +19,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
     @location(1) texture_index: u32, // contains the texture index
+    @location(2) height: f32,
 }
 
 @vertex
@@ -101,6 +102,7 @@ fn vs_main(
             vertex_position = vec3(1.0, 1.0, 1.0);
         }
     }
+    out.height = f32(instance.position.y);
     out.clip_position = camera.view_proj * vec4<f32>(
         vec3<f32>(f32(instance.position.x), f32(instance.position.y), f32(instance.position.z)) + vertex_position,
         1.0
@@ -133,5 +135,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     } else if orientation == 5 {
         shading = 0.8;
     }
-    return vec4<f32>(shading * color.rgb, color.a);
+    return vec4<f32>(shading * color.rgb * min(1.0 / (abs(in.height) * 0.01), 1.0), color.a);
 }

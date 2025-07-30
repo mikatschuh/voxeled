@@ -40,7 +40,7 @@ fn post_processing(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let depth = textureSample(depth_img, depth_img_s, pos);
     let color = textureSample(prev_img, prev_img_s, pos).rgb;
 
-    return vec4<f32>(apply_effects(pos, color, depth), 1.0);
+    return vec4<f32>(just_fog(pos, color, depth), 1.0);
 }
 
 fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
@@ -131,6 +131,11 @@ fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     let fog = min(linearized_depth, 1.0); // sqrt(1.0 - linearized_depth * linearized_depth);
 
     return mix(final_color * tint, SKY_COLOR, 1.0 - fog);
+}
+fn just_fog(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
+    let linearized_depth = linearize_depth(depth, 0.001, 1000.0) * distance_fog;
+    let fog = min(linearized_depth, 1.0); // sqrt(1.0 - linearized_depth * linearized_depth);
+    return mix(color, SKY_COLOR, 1.0 - fog);
 }
 // Helpers for FXAA
 fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
