@@ -121,5 +121,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if color.a == 0.0 {
         discard;
     }
-    return color;
+    var shading: f32;
+    if orientation == 0 {
+        shading = 1.0;
+    } else if orientation == 1 {
+        shading = 0.6;
+    } else if orientation == 2 {
+        shading = 0.8;
+    } else if orientation == 3 {
+        shading = 0.8;
+    } else if orientation == 4 {
+        shading = 0.8;
+    } else if orientation == 5 {
+        shading = 0.8;
+    }
+    return vec4<f32>(shading * color.rgb, color.a);
 }

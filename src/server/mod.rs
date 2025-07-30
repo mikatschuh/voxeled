@@ -1,7 +1,7 @@
 pub mod chunk;
 pub mod voxel;
 
-use crate::{gpu::mesh::Mesh, random::AnimatedNoise, threader::lazy::Lazy, threader::Threadpool};
+use crate::{gpu::mesh::Mesh, random::Noise, threader::lazy::Lazy, threader::Threadpool};
 use chunk::Chunk;
 use colored::Colorize;
 use glam::IVec3;
@@ -10,7 +10,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 const PRELOAD_DISTANCE: usize = 10;
-const CHUNK_GENERATOR: fn(IVec3, &AnimatedNoise, f64, &Chunks) -> Chunk = Chunk::from_landscape;
+const CHUNK_GENERATOR: fn(IVec3, &Noise, &Chunks) -> Chunk = Chunk::from_landscape;
 
 /// # Plan for Mesh Generation
 ///
@@ -31,7 +31,7 @@ impl Server {
             was_initiated: false,
         }
     }
-    pub fn init(&mut self, noise: Arc<AnimatedNoise>, threadpool: &mut Threadpool) {
+    pub fn init(&mut self, noise: Arc<Noise>, threadpool: &mut Threadpool) {
         for_point_in_square(IVec3::ZERO, PRELOAD_DISTANCE as i32, |chunk_coord| {
             let noise = noise.clone();
             let chunks = self.chunks.clone();
@@ -42,7 +42,7 @@ impl Server {
             threadpool
                 .add_priority(move || {
                     // let now = Instant::now();
-                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
+                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, &chunks);
                     chunks.add(chunk_coord, chunk.clone());
 
                     if chunk.is_empty {
@@ -69,8 +69,7 @@ impl Server {
         fov: f32,
         aspect_ratio: f32,
         render_distance: usize,
-        noise: Arc<AnimatedNoise>,
-        time: f64,
+        noise: Arc<Noise>,
         threadpool: &mut Threadpool,
     ) -> Mesh {
         if !self.was_initiated {
@@ -101,7 +100,7 @@ impl Server {
 
             threadpool
                 .add_priority(move || {
-                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, 0.0, &chunks);
+                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, &chunks);
                     chunks.add(chunk_coord, chunk.clone());
 
                     if chunk.is_empty {

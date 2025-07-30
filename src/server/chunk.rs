@@ -2,8 +2,9 @@ use super::Chunks;
 use std::f64::consts::FRAC_PI_2;
 
 use super::voxel::VoxelType;
-use crate::random::AnimatedNoise;
+use crate::random::Noise;
 use glam::{IVec3, Vec3};
+use num::pow::Pow;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
@@ -46,7 +47,7 @@ impl Chunk {
             is_empty: false,
         }
     }
-    pub fn from_rain_drops(pos: IVec3, noise: &AnimatedNoise, time: f64, chunks: &Chunks) -> Self {
+    pub fn from_rain_drops(pos: IVec3, noise: &Noise, chunks: &Chunks) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         let mut empty = true;
         for (x, plane) in voxels.iter_mut().enumerate() {
@@ -56,7 +57,7 @@ impl Chunk {
                         (x as i32 + pos.x * 32) as f64,
                         (y as i32 + pos.y * 32) as f64,
                         (z as i32 + pos.z * 32) as f64,
-                        time,
+                        0.1,
                     );
                     *voxel = if val > 0.5 {
                         empty = false;
@@ -80,7 +81,7 @@ impl Chunk {
             is_empty: empty,
         }
     }
-    pub fn from_landscape(pos: IVec3, noise: &AnimatedNoise, time: f64, chunks: &Chunks) -> Self {
+    pub fn from_landscape(pos: IVec3, noise: &Noise, chunks: &Chunks) -> Self {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         let mut empty = true;
         for x in 0..32 {
@@ -89,13 +90,13 @@ impl Chunk {
                     (x as i32 + pos.x * 32) as f64,
                     0.0,
                     (z as i32 + pos.z * 32) as f64,
-                    time,
-                    4,
+                    0.1,
+                    3,
                 );
+                assert!(height <= 1.0);
+                assert!(height >= 0.0);
                 for y in 0..32 {
-                    voxels[x][y][z] = if y as i32 + pos.y * 32
-                        > (height * height * height * height * 1000.0) as i32
-                    {
+                    voxels[x][y][z] = if y as i32 + pos.y * 32 > (height.pow(1) * 100.0) as i32 {
                         empty = false;
                         VoxelType::random_weighted()
                     } else {

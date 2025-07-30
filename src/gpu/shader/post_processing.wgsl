@@ -1,5 +1,5 @@
 const distance_fog: f32 = 60.0;
-const COLOR_SHIFT: f32 = 0.001;
+const COLOR_SHIFT: f32 = 0.0;
 const SKY_COLOR: vec3<f32> = vec3<f32>(0.2, 0.5, 0.7);
 
 struct PostProcessingOutput {

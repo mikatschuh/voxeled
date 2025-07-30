@@ -11,7 +11,6 @@ pub mod window;
 
 use camera::Camera3d;
 use camera_controller::CameraController;
-use glam::IVec3;
 use instance::Instance;
 use mesh::*;
 use pollster::block_on;

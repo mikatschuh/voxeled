@@ -59,10 +59,8 @@ fn main() {
 
     let elapsed_time = 0.0;
     let seed = random::get_random(0, u64::MAX);
-    let noise = Arc::new(random::AnimatedNoise::new(
+    let noise = Arc::new(random::Noise::new(
         seed as u32, // Seed für Reproduzierbarkeit
-        1.0,         // time_scale - kleinere Werte = langsamere Animation
-        0.07,        // space_scale - kleinere Werte = größere Strukturen
     ));
     println!("world seed: {:16x}", seed);
     let mut world = Server::new();
@@ -128,7 +126,7 @@ pub fn update(
     input_event_filter: &mut InputEventFilter,
     drawer: &mut gpu::Drawer<'_, SmoothController, Camera<SmoothController>>,
     world: &mut Server,
-    noise: &Arc<random::AnimatedNoise>,
+    noise: &Arc<random::Noise>,
     elapsed_time: f64,
     threadpool: &mut threader::Threadpool,
 ) {
@@ -148,9 +146,8 @@ pub fn update(
         cam_dir,
         Camera::<SmoothController>::FOV,
         drawer.window.aspect_ratio,
-        16,
+        12,
         noise.clone(),
-        elapsed_time,
         threadpool,
     ));
 }
