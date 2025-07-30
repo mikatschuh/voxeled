@@ -1,0 +1,33 @@
+Only one triangle of each face renders.
+
+Cause:
+    The points of the triangles have the wrong indices.
+
+Solution:
+    Correct the indices.
+
+Random faces have the wrong orientation.
+
+Cause:
+    The Instances are recognized with the wrong size and alignment
+    issues show up.
+
+Solution:
+    Enter the correct size.
+
+Only Faces that point in on direction render.
+
+Cause:
+    The GPU is not synchronizing properly.
+
+Solution:
+    Use a different buffer everytime you write to the GPU to force
+    it to synchronize.
+
+Pixels are rendered on top of other ones even though they are behind.
+
+Cause:
+    The resolution of the Z-Buffer is too small.
+
+Solution:
+    Increase the near plane as that will add resolution to the rest.
