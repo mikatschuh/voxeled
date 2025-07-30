@@ -32,10 +32,10 @@ pub struct SmoothController {
     delta_time: DeltaTime,
 }
 impl SmoothController {
-    const FRICTION: f32 = 1.66666667;
+    const FRICTION: f32 = 0.9;
     const STANDART_ACC: f32 = 0.01;
     const GRAVITY: f32 = 0.00981;
-    const MAX_SPEED: f32 = 1000.0;
+    const MAX_SPEED: f32 = 10.0;
 }
 impl CameraController for SmoothController {
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
@@ -71,14 +71,11 @@ impl CameraController for SmoothController {
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
     fn update(&mut self, vector: Vec3) {
         let vector = vector * self.acc;
-        self.vel = (self.vel
-            + (self.rot * vector
-                + Vec3::new(0.0, if self.flying { 0.0 } else { Self::GRAVITY }, 0.0))
-                * self.delta_time.get())
-        .clamp(
-            -Vec3::new(Self::MAX_SPEED, Self::MAX_SPEED, Self::MAX_SPEED),
-            Vec3::new(Self::MAX_SPEED, Self::MAX_SPEED, Self::MAX_SPEED),
-        ) * (Self::FRICTION / self.delta_time.get());
+        self.vel = ((self.vel + (self.rot * vector) * self.delta_time.get()) * Self::FRICTION)
+            .clamp(
+                -Vec3::new(Self::MAX_SPEED, Self::MAX_SPEED, Self::MAX_SPEED),
+                Vec3::new(Self::MAX_SPEED, Self::MAX_SPEED, Self::MAX_SPEED),
+            );
 
         self.pos += self.vel * self.delta_time.get();
     }
