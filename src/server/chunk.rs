@@ -1,10 +1,7 @@
 use super::Chunks;
-use std::f64::consts::FRAC_PI_2;
 
 use super::voxel::VoxelType;
-use crate::random::Noise;
 use glam::{IVec3, Vec3};
-use num::pow::Pow;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
@@ -15,11 +12,11 @@ pub struct Chunk {
     pub is_empty: bool,
 }
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Entity {}
+pub(super) enum Entity {}
 
 /// Speichert eine Bitmap wo ein Bit gesetzt ist wenn ein Face von einer Richtung nicht verdeckt ist.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ChunkFaces([[u32; 32]; 32]);
+pub struct ChunkFaces(pub [[u32; 32]; 32]);
 impl ChunkFaces {
     fn new() -> Self {
         Self([[0; 32]; 32])
@@ -29,113 +26,6 @@ impl ChunkFaces {
 impl Chunk {
     const NUM_OF_SOLID_BLOCKS: usize = 5;
     const NUM_OF_NON_SOLID_BLOCKS: usize = 5;
-
-    pub fn from_white_noise(pos: IVec3, chunks: &Chunks) -> Self {
-        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        for plane in voxels.iter_mut() {
-            for row in plane.iter_mut() {
-                for voxel in row.iter_mut() {
-                    *voxel = VoxelType::random_weighted()
-                }
-            }
-        }
-        Self {
-            pos,
-            voxels,
-            occlusion_map: map_visible(&voxels, pos, chunks),
-            entities: Vec::new(),
-            is_empty: false,
-        }
-    }
-    pub fn from_rain_drops(pos: IVec3, noise: &Noise, chunks: &Chunks) -> Self {
-        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        let mut empty = true;
-        for (x, plane) in voxels.iter_mut().enumerate() {
-            for (y, row) in plane.iter_mut().enumerate() {
-                for (z, voxel) in row.iter_mut().enumerate() {
-                    let val = noise.get(
-                        (x as i32 + pos.x * 32) as f64,
-                        (y as i32 + pos.y * 32) as f64,
-                        (z as i32 + pos.z * 32) as f64,
-                        0.1,
-                    );
-                    *voxel = if val > 0.5 {
-                        empty = false;
-                        VoxelType::random_weighted()
-                    } else {
-                        VoxelType::Air
-                    }
-                }
-            }
-        }
-
-        Self {
-            pos,
-            voxels,
-            occlusion_map: if empty {
-                [ChunkFaces([[0; 32]; 32]); 6]
-            } else {
-                map_visible(&voxels, pos, chunks)
-            },
-            entities: Vec::new(),
-            is_empty: empty,
-        }
-    }
-    pub fn from_landscape(pos: IVec3, noise: &Noise, chunks: &Chunks) -> Self {
-        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        let mut empty = true;
-        for x in 0..32 {
-            for z in 0..32 {
-                let height = noise.get_octaves(
-                    (x as i32 + pos.x * 32) as f64,
-                    0.0,
-                    (z as i32 + pos.z * 32) as f64,
-                    0.1,
-                    3,
-                );
-                assert!(height <= 1.0);
-                assert!(height >= 0.0);
-                for y in 0..32 {
-                    voxels[x][y][z] = if y as i32 + pos.y * 32 > (height.pow(1) * 100.0) as i32 {
-                        empty = false;
-                        VoxelType::random_weighted()
-                    } else {
-                        VoxelType::Air
-                    }
-                }
-            }
-        }
-
-        Self {
-            pos,
-            voxels,
-            occlusion_map: if empty {
-                [ChunkFaces([[0; 32]; 32]); 6]
-            } else {
-                map_visible(&voxels, pos, chunks)
-            },
-            entities: Vec::new(),
-            is_empty: empty,
-        }
-    }
-
-    pub fn from_pyramide(pos: IVec3, dir: Vec3, chunks: &Chunks) -> Self {
-        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-
-        super::every_chunk_in_frustum(Vec3::new(16.0, 16.0, 16.0), dir, FRAC_PI_2 as f32, 1.0, 3)
-            .into_iter()
-            .for_each(|coord| {
-                voxels[coord.x as usize][coord.y as usize][coord.z as usize] = VoxelType::Stone
-            });
-
-        Self {
-            pos,
-            voxels,
-            occlusion_map: map_visible(&voxels, pos, chunks),
-            entities: Vec::new(),
-            is_empty: false,
-        }
-    }
 }
 fn get_axis_aligned_solid_maps(voxels: &[[[VoxelType; 32]; 32]; 32]) -> [[[u32; 32]; 32]; 3] {
     let mut x_aligned = [[0; 32]; 32];

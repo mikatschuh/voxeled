@@ -8,7 +8,7 @@ pub fn flip_coin() -> bool {
 }
 use noise::{NoiseFn, Perlin};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Noise {
     noise: Perlin,
 }
@@ -39,7 +39,7 @@ impl Noise {
 
         (value + 1.0) * 0.5
     }
-    pub fn get_octaves(&self, x: f64, y: f64, z: f64, space_scale: f64, octaves: u32) -> f64 {
+    pub fn get_octaves(&self, x: f64, y: f64, z: f64, space_scale: f64, octaves: usize) -> f64 {
         let x = x * space_scale;
         let y = y * space_scale;
         let z = z * space_scale;

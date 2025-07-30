@@ -7,7 +7,7 @@ use gpu::{
     camera_controller::{CameraController, SmoothController},
 };
 use pollster::block_on;
-use server::Server;
+use server::{world_gen::MountainsAndValleys, Server};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -59,11 +59,9 @@ fn main() {
 
     let elapsed_time = 0.0;
     let seed = random::get_random(0, u64::MAX);
-    let noise = Arc::new(random::Noise::new(
-        seed as u32, // Seed für Reproduzierbarkeit
-    ));
     println!("world seed: {:16x}", seed);
-    let mut world = Server::new();
+    let mut server = Server::<server::world_gen::MountainsAndValleys>::new(seed);
+    let generator = server.expose_generator();
 
     let mut input_event_filter = input::InputEventFilter::new();
     let mut frame_number = 0;
@@ -99,8 +97,8 @@ fn main() {
                                     update(
                                         &mut input_event_filter,
                                         &mut drawer,
-                                        &mut world,
-                                        &noise,
+                                        &mut server,
+                                        &generator,
                                         elapsed_time,
                                         &mut threadpool,
                                     );
@@ -125,8 +123,8 @@ fn main() {
 pub fn update(
     input_event_filter: &mut InputEventFilter,
     drawer: &mut gpu::Drawer<'_, SmoothController, Camera<SmoothController>>,
-    world: &mut Server,
-    noise: &Arc<random::Noise>,
+    server: &mut Server<MountainsAndValleys>,
+    generator: &Arc<std::sync::RwLock<MountainsAndValleys>>,
     elapsed_time: f64,
     threadpool: &mut threader::Threadpool,
 ) {
@@ -141,13 +139,13 @@ pub fn update(
     drawer.update(&key_map);
 
     let now = Instant::now();
-    drawer.update_mesh(world.get_mesh(
+    generator.write().unwrap().vertical_area *= 1.001;
+    drawer.update_mesh(server.get_mesh(
         cam_pos,
         cam_dir,
         Camera::<SmoothController>::FOV,
         drawer.window.aspect_ratio,
         12,
-        noise.clone(),
         threadpool,
     ));
 }

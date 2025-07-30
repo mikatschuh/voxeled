@@ -1,7 +1,9 @@
 pub mod chunk;
 pub mod voxel;
+pub mod world_gen;
 
-use crate::{gpu::mesh::Mesh, random::Noise, threader::lazy::Lazy, threader::Threadpool};
+use crate::server::world_gen::Generator;
+use crate::{gpu::mesh::Mesh, threader::lazy::Lazy, threader::Threadpool};
 use chunk::Chunk;
 use colored::Colorize;
 use glam::IVec3;
@@ -10,7 +12,6 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 const PRELOAD_DISTANCE: usize = 10;
-const CHUNK_GENERATOR: fn(IVec3, &Noise, &Chunks) -> Chunk = Chunk::from_landscape;
 
 /// # Plan for Mesh Generation
 ///
@@ -18,22 +19,24 @@ const CHUNK_GENERATOR: fn(IVec3, &Noise, &Chunks) -> Chunk = Chunk::from_landsca
 ///    If yes, look if the mesh exists.
 ///    If yes, use the mesh.
 /// 2. If the chunk doesn't exist, generate an occlusion map and a mesh out of it.
-pub struct Server {
+pub struct Server<G: Generator> {
+    generator: Arc<RwLock<G>>,
     chunks: Arc<Chunks>,
     meshes: HashMap<IVec3, Lazy<Mesh>>,
     was_initiated: bool,
 }
-impl Server {
-    pub fn new() -> Self {
+impl<G: Generator> Server<G> {
+    pub fn new(seed: u64) -> Self {
         Self {
+            generator: Arc::new(RwLock::new(G::new(seed))),
             chunks: Arc::new(Chunks::new()),
             meshes: HashMap::new(),
             was_initiated: false,
         }
     }
-    pub fn init(&mut self, noise: Arc<Noise>, threadpool: &mut Threadpool) {
-        for_point_in_square(IVec3::ZERO, PRELOAD_DISTANCE as i32, |chunk_coord| {
-            let noise = noise.clone();
+    pub fn init(&mut self, cam_pos: IVec3, threadpool: &mut Threadpool) {
+        for_point_in_square(cam_pos, PRELOAD_DISTANCE as i32, |chunk_coord| {
+            let generator = self.generator.clone();
             let chunks = self.chunks.clone();
 
             let (lazy_mesh, s) = Lazy::open();
@@ -42,7 +45,7 @@ impl Server {
             threadpool
                 .add_priority(move || {
                     // let now = Instant::now();
-                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, &chunks);
+                    let chunk = generator.read().unwrap().gen(chunk_coord, &chunks);
                     chunks.add(chunk_coord, chunk.clone());
 
                     if chunk.is_empty {
@@ -69,11 +72,10 @@ impl Server {
         fov: f32,
         aspect_ratio: f32,
         render_distance: usize,
-        noise: Arc<Noise>,
         threadpool: &mut Threadpool,
     ) -> Mesh {
         if !self.was_initiated {
-            self.init(noise.clone(), threadpool)
+            self.init(cam_pos.as_ivec3(), threadpool)
         }
         let mut mesh = Mesh::with_capacity(24_000_000);
         let cam_chunk_pos = cam_pos / 32.0;
@@ -92,7 +94,7 @@ impl Server {
                 return;
             }
             let chunk_coord = chunk_coord.clone();
-            let noise = noise.clone();
+            let generator = self.generator.clone();
             let chunks = self.chunks.clone();
 
             let (lazy_mesh, s) = Lazy::open();
@@ -100,7 +102,7 @@ impl Server {
 
             threadpool
                 .add_priority(move || {
-                    let chunk = CHUNK_GENERATOR(chunk_coord, &noise, &chunks);
+                    let chunk = generator.read().unwrap().gen(chunk_coord, &chunks);
                     chunks.add(chunk_coord, chunk.clone());
 
                     if chunk.is_empty {
@@ -142,6 +144,10 @@ impl Server {
         });
         // println!("frame done, size of mesh: {} kB", (mesh.vertices.len() * size_of::<crate::gpu::mesh::Vertex>() + mesh.indices.len() * 4) / 1000);
         mesh
+    }
+    #[inline]
+    pub fn expose_generator(&self) -> Arc<RwLock<G>> {
+        self.generator.clone()
     }
 }
 #[inline]
