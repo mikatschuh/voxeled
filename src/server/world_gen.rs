@@ -30,9 +30,9 @@ impl Generator for MountainsAndValleys {
         Self {
             seed,
             noise: Noise::new(seed as u32),
-            horizontal_area: 0.1,
-            exponent: 1,
-            vertical_area: 100.0,
+            horizontal_area: 20.0,
+            exponent: 2,
+            vertical_area: 200.0,
             number_of_octaves: 3,
         }
     }
@@ -52,7 +52,7 @@ impl Generator for MountainsAndValleys {
                 assert!(height >= 0.0);
                 for y in 0..32 {
                     voxels[x][y][z] = if y as i32 + pos.y * 32
-                        > (height.pow(self.exponent) * self.vertical_area) as i32
+                        > (2.0.pow(height.pow(self.exponent)) * self.vertical_area) as i32
                     {
                         empty = false;
                         VoxelType::random_weighted()
@@ -121,7 +121,7 @@ impl Generator for RainDrops {
         Self {
             seed,
             noise: Noise::new(seed as u32),
-            horizontal_area: 0.1,
+            horizontal_area: 10.0,
             exponent: 1,
             threshold: 0.5,
             number_of_octaves: 1,

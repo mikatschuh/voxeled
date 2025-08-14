@@ -21,9 +21,9 @@ impl Noise {
     }
 
     pub fn get(&self, x: f64, y: f64, z: f64, space_scale: f64) -> f64 {
-        let animated_x = x * space_scale;
-        let animated_y = y * space_scale;
-        let animated_z = z * space_scale;
+        let animated_x = x / space_scale;
+        let animated_y = y / space_scale;
+        let animated_z = z / space_scale;
 
         // Variante 1: Zeit direkt als vierte Dimension nutzen
         // let value = self.noise.get([
@@ -40,9 +40,9 @@ impl Noise {
         (value + 1.0) * 0.5
     }
     pub fn get_octaves(&self, x: f64, y: f64, z: f64, space_scale: f64, octaves: usize) -> f64 {
-        let x = x * space_scale;
-        let y = y * space_scale;
-        let z = z * space_scale;
+        let x = x / space_scale;
+        let y = y / space_scale;
+        let z = z / space_scale;
 
         let mut value = 0.0;
         let mut max_value = 0.0;

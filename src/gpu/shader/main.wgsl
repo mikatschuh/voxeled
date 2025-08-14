@@ -135,5 +135,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     } else if orientation == 5 {
         shading = 0.8;
     }
-    return vec4<f32>(shading * color.rgb * min(1.0 / (abs(in.height) * 0.01), 1.0), color.a);
+    return vec4<f32>(shading * color.rgb * min(1.0 / (abs(in.height) * 0.001), 1.0), color.a);
 }

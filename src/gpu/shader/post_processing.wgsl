@@ -40,7 +40,7 @@ fn post_processing(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let depth = textureSample(depth_img, depth_img_s, pos);
     let color = textureSample(prev_img, prev_img_s, pos).rgb;
 
-    return vec4<f32>(just_fog(pos, color, depth), 1.0);
+    return vec4<f32>(apply_effects(pos, color, depth), 1.0);
 }
 
 fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
@@ -122,7 +122,7 @@ fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     );
 
     // Combine all effects
-    let final_color = contrast_color  * vignette;
+    let final_color = contrast_color;// * vignette;
 
     // Add a subtle blue-green tint to give it a retro computing feel
     let tint = vec3<f32>(0.95, 1.05, 1.05);
@@ -130,7 +130,7 @@ fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     // 1 = x^2 + y^2 => 1 - x^2 = y^2 => -x^2 = y^2 - 1 => x^2 = 1-y^2 => x = √(1-y^2)
     let fog = min(linearized_depth, 1.0); // sqrt(1.0 - linearized_depth * linearized_depth);
 
-    return mix(final_color * tint, SKY_COLOR, 1.0 - fog);
+    return mix(final_color/* * tint*/, SKY_COLOR, 1.0 - fog);
 }
 fn just_fog(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     let linearized_depth = linearize_depth(depth, 0.001, 1000.0) * distance_fog;
