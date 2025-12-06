@@ -15,7 +15,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::input::InputEventFilter;
+use crate::{input::InputEventFilter, server::world_gen::Generator};
 mod console;
 mod gpu;
 mod input;
@@ -60,7 +60,7 @@ fn main() {
     let elapsed_time = 0.0;
     let seed = random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
-    let mut server = Server::<server::world_gen::MountainsAndValleys>::new(seed);
+    let mut server = Server::<server::world_gen::RainDrops>::new(seed);
     let generator = server.expose_generator();
 
     let mut input_event_filter = input::InputEventFilter::new();
@@ -119,12 +119,13 @@ fn main() {
         .expect("event loop failed");
     threadpool.drop()
 }
+
 #[inline]
-pub fn update(
+pub fn update<G: Generator>(
     input_event_filter: &mut InputEventFilter,
     drawer: &mut gpu::Drawer<'_, SmoothController, Camera<SmoothController>>,
-    server: &mut Server<MountainsAndValleys>,
-    generator: &Arc<std::sync::RwLock<MountainsAndValleys>>,
+    server: &mut Server<G>,
+    generator: &Arc<std::sync::RwLock<G>>,
     elapsed_time: f64,
     threadpool: &mut threader::Threadpool,
 ) {

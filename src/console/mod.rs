@@ -41,7 +41,7 @@ impl Console {
                                         use CommandType::*;
                                         match command_type {
                                             Status => {
-                                                let fps = 1000.0 / delta_time.get();
+                                                let fps = 1.0 / delta_time.get();
                                                 let msg = format!("FPS: {}", fps);
                                                 let msg = if fps < 10.0 {
                                                     msg.red()

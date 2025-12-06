@@ -32,7 +32,7 @@ impl Generator for MountainsAndValleys {
             noise: Noise::new(seed as u32),
             horizontal_area: 20.0,
             exponent: 2,
-            vertical_area: 200.0,
+            vertical_area: 500.0,
             number_of_octaves: 3,
         }
     }

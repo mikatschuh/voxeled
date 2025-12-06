@@ -123,17 +123,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     var shading: f32;
     if orientation == 0 {
-        shading = 1.0;
+        shading = 0.8;
     } else if orientation == 1 {
-        shading = 0.6;
+        shading = 0.3;
     } else if orientation == 2 {
-        shading = 0.8;
+        shading = 0.5;
     } else if orientation == 3 {
-        shading = 0.8;
+        shading = 0.5;
     } else if orientation == 4 {
-        shading = 0.8;
+        shading = 0.5;
     } else if orientation == 5 {
-        shading = 0.8;
+        shading = 0.5;
     }
     return vec4<f32>(shading * color.rgb * min(1.0 / (abs(in.height) * 0.001), 1.0), color.a);
 }

@@ -29,12 +29,12 @@ impl DeltaTimeMeter {
 }
 #[derive(Clone)]
 pub struct DeltaTime(Arc<AtomicCell<u64>>);
-pub type Ms = f32;
+pub type S = f32;
 
 impl DeltaTime {
     /// returns the delta-time in milliseconds
-    pub fn get(&self) -> Ms {
-        self.0.load() as f32 / 1_000_000.0
+    pub fn get(&self) -> S {
+        self.0.load() as f32 / 1000_000_000.0
     }
 }
 use std::fmt;

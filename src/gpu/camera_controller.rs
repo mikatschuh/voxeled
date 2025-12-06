@@ -23,17 +23,20 @@ pub trait CameraController {
 }
 #[derive(Clone, Debug)]
 pub struct SmoothController {
+    acc: f32,
+
+    vel: Vec3,
     pos: Vec3,
+
     rot: Quat,
     angle: Vec3,
-    vel: Vec3,
-    acc: f32,
+
     flying: bool,
     delta_time: DeltaTime,
 }
 impl SmoothController {
-    const FRICTION: f32 = 0.9;
-    const STANDART_ACC: f32 = 0.01;
+    const FRICTION: f32 = 5.0;
+    const STANDART_ACC: f32 = 1.0;
     const GRAVITY: f32 = 0.00981;
     const MAX_SPEED: f32 = 0.1;
 }
@@ -69,9 +72,10 @@ impl CameraController for SmoothController {
             * Quat::from_axis_angle(Vec3::Z, self.angle.z);
     }
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
-    fn update(&mut self, vector: Vec3) {
-        let vector = vector * self.acc;
-        self.vel = ((self.vel + self.rot * vector * self.delta_time.get()) * Self::FRICTION);
+    fn update(&mut self, acc_vector: Vec3) {
+        let acc_vector = self.rot * (self.acc * acc_vector);
+        self.vel += acc_vector * self.delta_time.get();
+        self.vel *= (-Self::FRICTION * self.delta_time.get()).exp();
 
         self.pos += self.vel * self.delta_time.get();
     }

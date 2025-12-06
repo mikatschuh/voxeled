@@ -1,8 +1,7 @@
 fn func() {
-    let x = Number::new(0);
-    // x = Number(vec![0])
-
-    x.add(Number::new(1));
+    let mut vector = vec![1, 2, 3];
+    vector.push(4);
+    println!("{:?}", vector); // [1, 2, 3, 4]
 }
 
 struct Number(Vec<u64>);
