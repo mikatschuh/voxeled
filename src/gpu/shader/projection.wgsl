@@ -31,13 +31,13 @@ fn vs_main(
     out.texture_index = instance.kind;
 
     if model.kind == 0u {
-        out.tex_coords = vec2(0.0, 0.0);
-    } else if model.kind == 1u {
-        out.tex_coords = vec2(0.0, 1.0);
-    } else if model.kind == 2u {
-        out.tex_coords = vec2(1.0, 1.0);
-    } else {
         out.tex_coords = vec2(1.0, 0.0);
+    } else if model.kind == 1u {
+        out.tex_coords = vec2(0.0, 0.0);
+    } else if model.kind == 2u {
+        out.tex_coords = vec2(0.0, 1.0);
+    } else {
+        out.tex_coords = vec2(1.0, 1.0);
     }
 
     var vertex_position: vec3<f32>;
