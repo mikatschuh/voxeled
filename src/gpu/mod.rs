@@ -9,6 +9,8 @@ mod texture;
 pub mod texture_set;
 pub mod window;
 
+use std::{thread::sleep, time::Duration};
+
 use camera::Camera3d;
 use camera_controller::CameraController;
 use instance::Instance;
@@ -18,7 +20,7 @@ use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::event_loop::EventLoopWindowTarget;
 
-use crate::gpu::buffer_pool::BufferPool;
+use crate::{gpu::buffer_pool::BufferPool, input::Inputs};
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a, CC: CameraController, C>
@@ -553,33 +555,33 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         self.surface.configure(&self.device, &self.config);
     }
     /// Eine Funktion um den Status Quo zu verändern.
-    pub fn update(&mut self, keys: &crate::input::KeyMap) {
+    pub fn update(&mut self, inputs: &mut Inputs) {
         if self.window.focused() {
-            if keys.space_double_tap {
-                self.camera.controller().toggle_flying();
+            if let Some(mouse_motion) = inputs.mouse_motion {
+                self.camera
+                    .controller()
+                    .rotate_around_angle(glam::Vec3::new(
+                        -mouse_motion.x as f32,
+                        -mouse_motion.y as f32,
+                        0.,
+                    ));
             }
-            self.camera
-                .controller()
-                .rotate_around_angle(glam::Vec3::new(
-                    -keys.mouse_motion.x as f32,
-                    -keys.mouse_motion.y as f32,
-                    keys.q.state - keys.e.state,
-                ));
-            if keys.mouse_wheel.y != 0.0 {
-                self.camera.controller().update_acc(keys.mouse_wheel.y)
+
+            if let Some(scroll) = inputs.mouse_wheel {
+                self.camera.controller().update_acc(scroll.y)
             }
-            self.camera.controller().update(
-                glam::Vec3::new(
-                    keys.a.state - keys.d.state,
-                    keys.space.state - keys.shift.state,
-                    keys.w.state - keys.s.state,
-                )
-                .normalize_or_zero(),
-            );
+
+            self.camera.controller().update(glam::Vec3::new(
+                inputs.right.process() - inputs.left.process(),
+                inputs.down.process() - inputs.up.process(),
+                inputs.backwards.process() - inputs.forward.process(),
+            ));
         }
-        if keys.p.just_pressed() {
+
+        /*if inputs.p.just_pressed() {
             println!("camera position: {}", self.camera.controller().pos());
-        }
+        }*/
+
         self.queue.write_buffer(
             &self.camera_buffer,
             0,

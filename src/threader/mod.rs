@@ -25,7 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 pub mod lazy;
-pub type Task = Box<dyn (FnOnce()) + Send + 'static>;
+pub type Task = Box<dyn FnOnce() + Send + 'static>;
 
 const DEFAULT_PRIORITY_LIMIT: usize = 10000;
 const DEFAULT_TASK_LIMIT: usize = 10000;
@@ -63,6 +63,7 @@ impl Threadpool {
             wake_call,
         }
     }
+
     pub fn launch(&mut self, num_threads: Option<usize>) {
         for i in 0..num_threads.unwrap_or_else(|| num_cpus::get() / 2) {
             let priority_queue = self.priority_queue.clone();
@@ -120,6 +121,7 @@ impl Threadpool {
             self.workers.push(join_handle);
         }
     }
+
     pub fn update(&mut self) {
         if self.last_update.elapsed().as_secs_f32() >= 1.0 {
             let available_threads = num_cpus::get() as i64 / 2 - self.sleeping.load() as i64;
@@ -134,9 +136,11 @@ impl Threadpool {
             self.last_update = Instant::now();
         }
     }
+
     pub fn priority_is_full(&self) -> bool {
         self.priority_queue.len() <= self.priority_limit
     }
+
     /// A function to add priority tasks. Returns the task if the queue was full.
     pub fn add_priority<F>(&mut self, task: F) -> Option<F>
     where
@@ -149,6 +153,7 @@ impl Threadpool {
         let _ = self.waker.try_send(true);
         None
     }
+
     pub fn add_to_first<F>(&mut self, task: F) -> Option<F>
     where
         F: FnOnce() + Send + 'static,
@@ -160,6 +165,7 @@ impl Threadpool {
         let _ = self.waker.try_send(true);
         None
     }
+
     pub fn add_to_second<F>(&mut self, task: F) -> Option<F>
     where
         F: FnOnce() + Send + 'static,
@@ -171,6 +177,7 @@ impl Threadpool {
         let _ = self.waker.try_send(true);
         None
     }
+
     pub fn drop(self) {
         for _ in 0..self.workers.len() {
             if let Err(..) = self.waker.send_timeout(false, Duration::from_micros(300)) {

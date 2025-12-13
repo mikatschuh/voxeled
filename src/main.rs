@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use colored::Colorize;
 use glam::Vec3;
@@ -7,7 +7,7 @@ use gpu::{
     camera_controller::{CameraController, SmoothController},
 };
 use pollster::block_on;
-use server::{world_gen::MountainsAndValleys, Server};
+use server::Server;
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -15,10 +15,12 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::{input::InputEventFilter, server::world_gen::Generator};
+use crate::{input::Inputs, server::world_gen::Generator};
+
 mod console;
 mod gpu;
 mod input;
+// mod old_input;
 mod playground;
 mod random;
 mod server;
@@ -63,12 +65,12 @@ fn main() {
     let mut server = Server::<server::world_gen::RainDrops>::new(seed);
     let generator = server.expose_generator();
 
-    let mut input_event_filter = input::InputEventFilter::new();
+    let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
 
     event_loop // main event loop
         .run(|event, control_flow| {
-            if !input_event_filter.handled_event(&event, drawer.window.id()) {
+            if !input_event_filter.could_handle(&event, drawer.window.id()) {
                 match event {
                     Event::WindowEvent { event, window_id } if window_id == drawer.window.id() => {
                         match event {
@@ -91,11 +93,13 @@ fn main() {
                                 delta_time.update();
                                 threadpool.update();
 
+                                let inputs = input_event_filter.get();
+
                                 if frame_number == 0 {
                                     block_on(drawer.draw(control_flow))
                                 } else {
                                     update(
-                                        &mut input_event_filter,
+                                        inputs,
                                         &mut drawer,
                                         &mut server,
                                         &generator,
@@ -105,6 +109,7 @@ fn main() {
                                     // println!("time it took to build mesh in total: {:#?}", now.elapsed());
                                     block_on(drawer.draw(control_flow));
                                 }
+                                input_event_filter.frame_done();
                                 drawer.window.request_redraw(); // This tells winit that we want another frame after this one
                                 frame_number += 1
                             }
@@ -122,31 +127,29 @@ fn main() {
 
 #[inline]
 pub fn update<G: Generator>(
-    input_event_filter: &mut InputEventFilter,
+    inputs: &mut Inputs,
     drawer: &mut gpu::Drawer<'_, SmoothController, Camera<SmoothController>>,
     server: &mut Server<G>,
     generator: &Arc<std::sync::RwLock<G>>,
     elapsed_time: f64,
     threadpool: &mut threader::Threadpool,
 ) {
-    let key_map = input_event_filter.get();
-
-    if key_map.esc.just_pressed() {
+    if inputs.esc {
         drawer.window.flip_focus()
     }
 
     let cam_pos = drawer.camera.controller().pos();
     let cam_dir = drawer.camera.controller().dir();
-    drawer.update(&key_map);
+    drawer.update(inputs);
 
-    let now = Instant::now();
+    // let now = Instant::now();
     // generator.write().unwrap().vertical_area *= 1.001;
     drawer.update_mesh(server.get_mesh(
         cam_pos,
         cam_dir,
         Camera::<SmoothController>::FOV,
         drawer.window.aspect_ratio,
-        16,
+        8,
         threadpool,
     ));
 }
