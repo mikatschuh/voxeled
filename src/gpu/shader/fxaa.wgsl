@@ -44,3 +44,9 @@ const FXAA_REDUCE_MUL: f32 = 1.0 / 8.0;
 
     return rgb_b;
 }
+
+// Helpers for FXAA
+fn rgb_to_luma(rgb: vec3<f32>) -> f32 {
+    // Convert RGB to brightness using standard coefficients
+    return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+}

@@ -33,7 +33,7 @@ var depth_img_s: sampler;
 @fragment
 fn post_processing(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let pos = in.tex_coords;
-    let depth = textureSample(depth_img, depth_img_s, pos);
+    let depth = (1.0 - min((1.0 - textureSample(depth_img, depth_img_s, pos)) * 500.0, 1.0));
     let color = textureSample(prev_img, prev_img_s, pos).rgb;
 
     return vec4<f32>(apply_effects(pos, color, depth), 1.0);
