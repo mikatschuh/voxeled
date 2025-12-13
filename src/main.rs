@@ -101,7 +101,7 @@ fn main() {
                                 let inputs = input_event_filter.get();
 
                                 if frame_number == 0 {
-                                    block_on(drawer.draw(control_flow))
+                                    drawer.draw(control_flow)
                                 } else {
                                     update(
                                         inputs,
@@ -112,7 +112,7 @@ fn main() {
                                         &mut threadpool,
                                     );
                                     // println!("time it took to build mesh in total: {:#?}", now.elapsed());
-                                    block_on(drawer.draw(control_flow));
+                                    drawer.draw(control_flow);
                                 }
                                 input_event_filter.frame_done();
                                 drawer.window.request_redraw(); // This tells winit that we want another frame after this one

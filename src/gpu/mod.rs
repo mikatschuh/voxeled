@@ -13,7 +13,6 @@ use camera::Camera3d;
 use camera_controller::CameraController;
 use instance::Instance;
 use mesh::*;
-use pollster::block_on;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::event_loop::EventLoopWindowTarget;
@@ -592,8 +591,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     /// # Errors
     ///
-    pub async fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
-        match block_on(self.try_draw()) {
+    pub fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
+        match self.try_draw() {
             Ok(_) => {}
             // Reconfigure the surface if it's lost or outdated
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => self.reconfigure(),
@@ -609,7 +608,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             }
         }
     }
-    async fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture

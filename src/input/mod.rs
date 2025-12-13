@@ -1,4 +1,5 @@
 use std::{
+    array::IntoIter,
     fs::File,
     io::Read,
     mem,
@@ -197,7 +198,7 @@ pub struct Inputs {
 }
 
 impl Inputs {
-    fn every_downtime(&mut self) -> [&mut DownTime; 6] {
+    fn every_downtime(&mut self) -> IntoIter<&mut DownTime, 6> {
         [
             &mut self.forward,
             &mut self.backwards,
@@ -206,6 +207,7 @@ impl Inputs {
             &mut self.up,
             &mut self.down,
         ]
+        .into_iter()
     }
 }
 
@@ -268,6 +270,10 @@ impl InputEventFilter {
                 },
                 // unfocused
                 WindowEvent::Focused(focused) if !focused => {
+                    self.inputs
+                        .every_downtime()
+                        .for_each(|down_time| down_time.release());
+
                     return false;
                 }
                 WindowEvent::KeyboardInput { event, .. }
