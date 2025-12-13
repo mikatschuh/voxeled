@@ -31,3 +31,11 @@ Cause:
 
 Solution:
     Increase the near plane as that will add resolution to the rest.
+
+Inputs are buggy.
+
+Cause:
+    The inputs were not kept from the last frame.
+
+Solution:
+    Build a system that doesnt get reset and subtracts the processed time from the total downtime.

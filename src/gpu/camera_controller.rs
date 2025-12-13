@@ -35,7 +35,7 @@ pub struct SmoothController {
     delta_time: DeltaTime,
 }
 impl SmoothController {
-    const FRICTION: f32 = 2.0;
+    const FRICTION: f32 = 0.5;
     const STANDART_ACC: f32 = 50.0;
     const GRAVITY: f32 = 0.00981;
     const MAX_SPEED: f32 = 0.1;
