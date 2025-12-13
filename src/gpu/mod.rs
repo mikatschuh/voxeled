@@ -9,8 +9,6 @@ mod texture;
 pub mod texture_set;
 pub mod window;
 
-use std::{thread::sleep, time::Duration};
-
 use camera::Camera3d;
 use camera_controller::CameraController;
 use instance::Instance;
@@ -732,6 +730,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         Ok(())
     }
 }
+
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct DrawIndexedIndirect {

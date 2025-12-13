@@ -1,4 +1,4 @@
-const distance_fog: f32 = 60.0;
+const distance_fog: f32 = 10.0;
 const COLOR_SHIFT: f32 = 0.0;
 const SKY_COLOR: vec3<f32> = vec3<f32>(0.2, 0.5, 0.7);
 
@@ -15,11 +15,11 @@ fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     // Combine all effects
     let final_color = anti_aliased * sqrt(vignette);
 
-    let linearized_depth = linearize_depth(depth, 0.001, 1000.0) * distance_fog;
+    let linearized_depth = (1.0 - linearize_depth(depth, 0.1, 1000.0)) * distance_fog;
     // 1 = x^2 + y^2 => 1 - x^2 = y^2 => -x^2 = y^2 - 1 => x^2 = 1-y^2 => x = √(1-y^2)
     let fog = min(linearized_depth, 1.0);
 
-    return mix(final_color, SKY_COLOR, 1.0 - fog);
+    return mix(final_color, vec3<f32>(0.0), fog);
 }
 
 fn just_fog(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {

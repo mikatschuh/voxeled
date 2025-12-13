@@ -21,6 +21,7 @@ mod console;
 mod gpu;
 mod input;
 // mod old_input;
+mod netcode;
 mod playground;
 mod random;
 mod server;
@@ -62,11 +63,15 @@ fn main() {
     let elapsed_time = 0.0;
     let seed = random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
-    let mut server = Server::<server::world_gen::RainDrops>::new(seed);
+    let mut server = Server::<server::world_gen::OpenCaves>::new(seed);
     let generator = server.expose_generator();
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
+
+    // ping the server:
+
+    netcode::connect("127.0.0.1:5000").expect("connection");
 
     event_loop // main event loop
         .run(|event, control_flow| {
