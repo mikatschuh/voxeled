@@ -1,8 +1,8 @@
-const distance_fog: f32 = 1.0;
-const SKY_COLOR: vec3<f32> = vec3<f32>(0.2, 0.5, 0.7);
+const distance_fog: f32 = 0.8;
+const SKY_COLOR: vec3<f32> = vec3(0.0); //vec3(0.2, 0.5, 0.7);
 
 fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
-    if depth == 1.0 { return vec3(0.0); }
+    if depth == 1.0 { return SKY_COLOR; }
 
     let anti_aliased = fxaa(pos, color);
 
@@ -14,10 +14,10 @@ fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     // Combine all effects
     let final_color = anti_aliased * sqrt(vignette);
 
-    // let linearized_depth = linearize_depth(depth, 0.1, 1000.0);
+    // let linearized_depth = linearize_depth(depth, 0.1, 10_000.0);
     let fog = depth * distance_fog;
 
-    return mix(final_color, vec3<f32>(0.0), fog);
+    return mix(final_color, SKY_COLOR, fog);
 }
 
 fn image(pos: vec2<f32>) -> vec3<f32> {

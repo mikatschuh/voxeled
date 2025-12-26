@@ -195,6 +195,9 @@ pub struct Inputs {
     pub mouse_wheel: Option<PhysicalPosition<f32>>,
 
     pub esc: bool,
+    pub remesh: bool,
+    pub lod_up: bool,
+    pub lod_down: bool,
 }
 
 impl Inputs {
@@ -242,7 +245,12 @@ impl InputEventFilter {
         })
     }
 
-    pub fn could_handle(&mut self, event: &Event<()>, own_window_id: WindowId) -> bool {
+    pub fn could_handle(
+        &mut self,
+        event: &Event<()>,
+        own_window_id: WindowId,
+        keyboard_focus: bool,
+    ) -> bool {
         match event {
             Event::DeviceEvent { event, .. } => match event {
                 DeviceEvent::MouseMotion { delta } => {
@@ -269,18 +277,14 @@ impl InputEventFilter {
                     }
                 },
                 // unfocused
-                WindowEvent::Focused(focused) if !focused => {
-                    self.inputs
-                        .every_downtime()
-                        .for_each(|down_time| down_time.release());
+                WindowEvent::Focused(focused) => {
+                    if !focused {
+                        self.inputs
+                            .every_downtime()
+                            .for_each(|down_time| down_time.release());
+                    }
 
                     return false;
-                }
-                WindowEvent::KeyboardInput { event, .. }
-                    if event.physical_key == PhysicalKey::Code(KeyCode::Escape)
-                        && event.state.is_pressed() =>
-                {
-                    self.inputs.esc = true
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let key_code = match event.physical_key {
@@ -289,6 +293,24 @@ impl InputEventFilter {
                     };
 
                     let down_time = match key_code {
+                        KeyCode::Escape if event.state.is_pressed() => {
+                            self.inputs.esc = true;
+                            return true;
+                        }
+                        KeyCode::KeyR if event.state.is_pressed() => {
+                            self.inputs.remesh = true;
+                            return true;
+                        }
+                        KeyCode::Digit2 if event.state.is_pressed() => {
+                            self.inputs.lod_up = true;
+                            return true;
+                        }
+                        KeyCode::Digit1 if event.state.is_pressed() => {
+                            self.inputs.lod_down = true;
+                            return true;
+                        }
+
+                        _ if !keyboard_focus => return false,
                         KeyCode::KeyW => &mut self.inputs.forward,
                         KeyCode::KeyS => &mut self.inputs.backwards,
                         KeyCode::KeyA => &mut self.inputs.left,
@@ -320,5 +342,8 @@ impl InputEventFilter {
         self.inputs.mouse_wheel = None;
 
         self.inputs.esc = false;
+        self.inputs.remesh = false;
+        self.inputs.lod_up = false;
+        self.inputs.lod_down = false;
     }
 }

@@ -39,3 +39,11 @@ Cause:
 
 Solution:
     Build a system that doesnt get reset and subtracts the processed time from the total downtime.
+
+Textures were rotated
+
+Cause:
+    The texture coordinates were wrong
+
+Solution:
+    Correct them in the shader

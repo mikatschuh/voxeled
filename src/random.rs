@@ -3,9 +3,7 @@ use rand::Rng;
 pub fn get_random<T: Ord + rand::distributions::uniform::SampleUniform>(min: T, max: T) -> T {
     rand::thread_rng().gen_range(min..=max)
 }
-pub fn flip_coin() -> bool {
-    rand::random()
-}
+
 use noise::{NoiseFn, Perlin};
 
 #[derive(Clone, Debug)]
@@ -39,6 +37,7 @@ impl Noise {
 
         (value + 1.0) * 0.5
     }
+
     pub fn get_octaves(&self, x: f64, y: f64, z: f64, space_scale: f64, octaves: usize) -> f64 {
         let x = x / space_scale;
         let y = y / space_scale;

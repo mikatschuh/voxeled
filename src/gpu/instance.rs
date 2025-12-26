@@ -3,7 +3,7 @@ use glam::IVec3;
 /// The kind states the orientation and the texture.
 /// It has the following layout:
 /// ```
-///                                                          texture|
+///                             LODs|                        texture|
 /// |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|
 /// ```
 

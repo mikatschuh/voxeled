@@ -20,6 +20,7 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) texture_index: u32, // contains the texture index
     @location(2) height: f32,
+    @location(3) lod_level: u32,
 }
 
 @vertex
@@ -28,7 +29,8 @@ fn vs_main(
     instance: InstanceInput,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.texture_index = instance.kind;
+    out.texture_index = instance.kind & 0xFFFF;
+    let lod_level = instance.kind >> 16;
 
     if model.kind == 0u {
         out.tex_coords = vec2(1.0, 0.0);
@@ -102,6 +104,9 @@ fn vs_main(
             vertex_position = vec3(1.0, 1.0, 1.0);
         }
     }
+    vertex_position *= f32(1u << (lod_level));
+
+    out.lod_level = lod_level;
     out.height = f32(instance.position.y);
     out.clip_position = camera.view_proj * vec4<f32>(
         vec3<f32>(f32(instance.position.x), f32(instance.position.y), f32(instance.position.z)) + vertex_position,
@@ -135,5 +140,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     } else if orientation == 5 {
         shading = 0.5;
     }
-    return vec4<f32>(shading * color.rgb * min(1.0 / (abs(in.height) * 0.001), 1.0), color.a);
+
+    /*var tint: vec3<f32>;
+    if in.lod_level == 0 {
+        tint = vec3(2., 0.5, 0.5);
+    } else if in.lod_level == 1 {
+        tint = vec3(0.5, 2., 0.5);
+    } else {
+        tint = vec3(0.5, 0.5, 2.);
+    }*/
+
+    return vec4<f32>(shading * color.rgb * min(1.0 / (max(-in.height, 0.0) * 0.001), 1.0), color.a);
 }

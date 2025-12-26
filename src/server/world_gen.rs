@@ -1,21 +1,20 @@
-use glam::IVec3;
 use num::pow::Pow;
 
 use crate::{
     random::Noise,
     server::{
-        chunk::{map_visible, Chunk, ChunkFaces},
-        voxel::VoxelType,
-        Chunks,
+        chunks::ChunkID,
+        voxel::{VoxelData3D, VoxelType},
     },
 };
 
 type Seed = u64;
 pub trait Generator: Clone + Send + Sync + 'static {
     fn new(seed: Seed) -> Self;
-    fn gen(&self, pos: IVec3, other_chunks: &Chunks) -> Chunk;
+    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D;
     fn seed(&self) -> Seed;
 }
+
 #[derive(Clone)]
 pub struct MountainsAndValleys {
     pub seed: Seed,
@@ -25,6 +24,7 @@ pub struct MountainsAndValleys {
     pub exponent: i32,
     pub number_of_octaves: usize,
 }
+
 impl Generator for MountainsAndValleys {
     fn new(seed: Seed) -> Self {
         Self {
@@ -36,25 +36,24 @@ impl Generator for MountainsAndValleys {
             number_of_octaves: 3,
         }
     }
-    fn gen(&self, pos: IVec3, other_chunks: &Chunks) -> Chunk {
+
+    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        let mut empty = true;
         for x in 0..32 {
             for z in 0..32 {
                 let height = self.noise.get_octaves(
-                    (x as i32 + pos.x * 32) as f64,
+                    (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
                     0.0,
-                    (z as i32 + pos.z * 32) as f64,
+                    (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
                     self.horizontal_area,
                     self.number_of_octaves,
                 );
                 assert!(height <= 1.0);
                 assert!(height >= 0.0);
                 for y in 0..32 {
-                    voxels[x][y][z] = if y as i32 + pos.y * 32
+                    voxels[x][y][z] = if y as i32 + (chunk_id.pos.y << chunk_id.lod) * 32
                         > (2.0.pow(height.pow(self.exponent)) * self.vertical_area) as i32
                     {
-                        empty = false;
                         VoxelType::random_weighted()
                     } else {
                         VoxelType::Air
@@ -62,31 +61,23 @@ impl Generator for MountainsAndValleys {
                 }
             }
         }
-        Chunk {
-            pos,
-            voxels,
-            occlusion_map: if empty {
-                [ChunkFaces([[0; 32]; 32]); 6]
-            } else {
-                map_visible(&voxels, pos, other_chunks)
-            },
-            entities: Vec::new(),
-            is_empty: empty,
-        }
+        voxels
     }
     fn seed(&self) -> Seed {
         self.seed
     }
 }
+
 #[derive(Clone)]
 pub struct WhiteNoise {
     pub seed: Seed,
 }
+
 impl Generator for WhiteNoise {
     fn new(seed: Seed) -> Self {
         Self { seed }
     }
-    fn gen(&self, pos: IVec3, other_chunks: &Chunks) -> Chunk {
+    fn gen(&self, _chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for plane in voxels.iter_mut() {
             for row in plane.iter_mut() {
@@ -95,13 +86,7 @@ impl Generator for WhiteNoise {
                 }
             }
         }
-        Chunk {
-            pos,
-            voxels,
-            occlusion_map: map_visible(&voxels, pos, other_chunks),
-            entities: Vec::new(),
-            is_empty: false,
-        }
+        voxels
     }
     fn seed(&self) -> Seed {
         self.seed
@@ -123,27 +108,25 @@ impl Generator for RainDrops {
         Self {
             seed,
             noise: Noise::new(seed as u32),
-            horizontal_area: 6.0,
+            horizontal_area: 20.0,
             exponent: 1,
             threshold: 0.8,
             number_of_octaves: 1,
         }
     }
-    fn gen(&self, pos: IVec3, other_chunks: &Chunks) -> Chunk {
+    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        let mut empty = true;
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
                     let val = self.noise.get_octaves(
-                        (x as i32 + pos.x * 32) as f64,
-                        (y as i32 + pos.y * 32) as f64,
-                        (z as i32 + pos.z * 32) as f64,
+                        (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
+                        (y as i32 + chunk_id.pos.y * 32 << chunk_id.lod) as f64,
+                        (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
                         self.horizontal_area,
                         self.number_of_octaves,
                     );
                     *voxel = if val.pow(self.exponent) > self.threshold {
-                        empty = false;
                         VoxelType::random_weighted()
                     } else {
                         VoxelType::Air
@@ -151,18 +134,7 @@ impl Generator for RainDrops {
                 }
             }
         }
-
-        Chunk {
-            pos,
-            voxels,
-            occlusion_map: if empty {
-                [ChunkFaces([[0; 32]; 32]); 6]
-            } else {
-                map_visible(&voxels, pos, other_chunks)
-            },
-            entities: Vec::new(),
-            is_empty: empty,
-        }
+        voxels
     }
     fn seed(&self) -> Seed {
         self.seed
@@ -184,27 +156,25 @@ impl Generator for OpenCaves {
         Self {
             seed,
             noise: Noise::new(seed as u32),
-            horizontal_area: 8.0,
+            horizontal_area: 32.0,
             exponent: 1,
             threshold: 0.5,
-            number_of_octaves: 3,
+            number_of_octaves: 5,
         }
     }
-    fn gen(&self, pos: IVec3, other_chunks: &Chunks) -> Chunk {
+    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        let mut empty = true;
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
                     let val = self.noise.get_octaves(
-                        (x as i32 + pos.x * 32) as f64,
-                        (y as i32 + pos.y * 32) as f64,
-                        (z as i32 + pos.z * 32) as f64,
+                        (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
+                        (y as i32 + chunk_id.pos.y * 32 << chunk_id.lod) as f64,
+                        (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
                         self.horizontal_area,
                         self.number_of_octaves,
                     );
                     *voxel = if val.pow(self.exponent) > self.threshold {
-                        empty = false;
                         VoxelType::random_weighted()
                     } else {
                         VoxelType::Air
@@ -212,18 +182,7 @@ impl Generator for OpenCaves {
                 }
             }
         }
-
-        Chunk {
-            pos,
-            voxels,
-            occlusion_map: if empty {
-                [ChunkFaces([[0; 32]; 32]); 6]
-            } else {
-                map_visible(&voxels, pos, other_chunks)
-            },
-            entities: Vec::new(),
-            is_empty: empty,
-        }
+        voxels
     }
     fn seed(&self) -> Seed {
         self.seed

@@ -322,6 +322,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     &[
                         image::load_from_memory(texture_set::Texture::Stone.bytes()).unwrap(),
                         image::load_from_memory(texture_set::Texture::Dirt.bytes()).unwrap(),
+                        image::load_from_memory(texture_set::Texture::Debug.bytes()).unwrap(),
                     ],
                     Some("Stone Texture"),
                 );
@@ -415,7 +416,7 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
                     front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Front), // DEBUG: Culling komplett deaktiviert
+                    cull_mode: None, // Some(wgpu::Face::Front), // DEBUG: Culling komplett deaktiviert
                     // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                     polygon_mode: wgpu::PolygonMode::Fill,
                     // Requires Features::DEPTH_CLIP_CONTROL
@@ -548,9 +549,11 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             self.surface.configure(&self.device, &self.config);
         }
     }
+
     pub fn reconfigure(&mut self) {
         self.surface.configure(&self.device, &self.config);
     }
+
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update(&mut self, inputs: &mut Inputs) {
         if self.window.focused() {
@@ -585,9 +588,11 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
             bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
         );
     }
+
     pub fn update_mesh(&mut self, mesh: Mesh) {
         self.mesh = mesh;
     }
+
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     /// # Errors
     ///
