@@ -53,4 +53,4 @@ inherits = "release"
 # Slightly slows compile times, great improvements to file size and runtime performance.
 opt-level = "s"
 # Strip all debugging information from the binary to slightly reduce file size.
-strip = "debuginfo"
+# strip = "debuginfo"

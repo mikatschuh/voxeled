@@ -51,7 +51,7 @@ impl Generator for MountainsAndValleys {
                 assert!(height <= 1.0);
                 assert!(height >= 0.0);
                 for y in 0..32 {
-                    voxels[x][y][z] = if y as i32 + (chunk_id.pos.y << chunk_id.lod) * 32
+                    voxels[x][y][z] = if y as i32 + chunk_id.pos.y * 32 << chunk_id.lod
                         > (2.0.pow(height.pow(self.exponent)) * self.vertical_area) as i32
                     {
                         VoxelType::random_weighted()
@@ -156,7 +156,7 @@ impl Generator for OpenCaves {
         Self {
             seed,
             noise: Noise::new(seed as u32),
-            horizontal_area: 32.0,
+            horizontal_area: 32.0, // 8.0,
             exponent: 1,
             threshold: 0.5,
             number_of_octaves: 5,

@@ -16,11 +16,9 @@ Second Tasks:
 */
 use crossbeam::deque::Injector;
 use parking_lot::RwLock;
-use std::{sync::Arc, thread};
+use std::{mem, sync::Arc, thread};
 
-use crate::{server::world_gen::Generator, threader::jobs::Job};
-
-pub mod jobs;
+use crate::server::{job::Job, world_gen::Generator};
 
 #[derive(Debug)]
 pub struct Threadpool<G: Generator> {
@@ -76,9 +74,7 @@ impl<G: Generator> Threadpool<G> {
         for (worker, debug_log) in self.debug_book.iter().enumerate() {
             out += &format!(
                 "\nthread {worker}: {}",
-                debug_log
-                    .read()
-                    .clone()
+                mem::take(&mut *debug_log.write())
                     .into_iter()
                     .reduce(|a, b| a.to_owned() + ", " + &b)
                     .unwrap_or(String::new())

@@ -1,8 +1,8 @@
 use crate::gpu::texture_set::Texture;
 use crate::server::chunks::{ChunkID, Level};
-use crate::server::frustum::{chunk_overlaps, Frustum, LodLevel, MAX_LOD};
+use crate::server::frustum::{chunk_overlaps, cube, Frustum, LodLevel, MAX_LOD};
+use crate::server::job::Job;
 use crate::server::world_gen::Generator;
-use crate::threader::jobs::Job;
 use crate::{gpu::mesh::Mesh, threader::Threadpool};
 use colored::Colorize;
 use crossbeam::sync::ShardedLock;
@@ -13,6 +13,7 @@ use std::time::Instant;
 pub mod chunks;
 pub mod frustum;
 // mod sampling;
+pub mod job;
 pub mod meshing;
 #[cfg(test)]
 mod test;
@@ -68,44 +69,32 @@ impl<G: Generator> Server<G> {
         let cam_chunk_pos = cam_chunk_pos.as_ivec3();
         let render_chunks = self.select_render_chunks(&chunks);
 
-        chunks.iter().for_each(|chunk_id| {
-            let pos = (chunk_id.pos * 32) << chunk_id.lod;
-
-            let size = chunk_id.lod + 5;
-            mesh.add_nx(pos, Texture::Debug, size);
-            mesh.add_px(pos, Texture::Debug, size);
-            mesh.add_ny(pos, Texture::Debug, size);
-            mesh.add_py(pos, Texture::Debug, size);
-            mesh.add_nz(pos, Texture::Debug, size);
-            mesh.add_pz(pos, Texture::Debug, size);
-        });
-
         render_chunks.into_iter().for_each(|chunk_id| {
             let Some(chunk_mesh) = self.level.chunk_op(chunk_id, |chunk| chunk.mesh.clone()) else {
                 return;
             };
             let chunk_mesh = chunk_mesh.read();
 
-            mesh += chunk_mesh.clone();
+            //mesh += chunk_mesh.clone();
 
-            /*if cam_chunk_pos.x <= chunk_id.pos.x {
+            if cam_chunk_pos.x <= chunk_id.pos.x << chunk_id.lod {
                 mesh.nx.append(&mut chunk_mesh.nx.clone())
             }
-            if cam_chunk_pos.x >= chunk_id.pos.x {
+            if cam_chunk_pos.x >= chunk_id.pos.x << chunk_id.lod {
                 mesh.px.append(&mut chunk_mesh.px.clone())
             }
-            if cam_chunk_pos.y <= chunk_id.pos.y {
+            if cam_chunk_pos.y <= chunk_id.pos.y << chunk_id.lod {
                 mesh.ny.append(&mut chunk_mesh.ny.clone())
             }
-            if cam_chunk_pos.y >= chunk_id.pos.y {
+            if cam_chunk_pos.y >= chunk_id.pos.y << chunk_id.lod {
                 mesh.py.append(&mut chunk_mesh.py.clone())
             }
-            if cam_chunk_pos.z <= chunk_id.pos.z {
+            if cam_chunk_pos.z <= chunk_id.pos.z << chunk_id.lod {
                 mesh.nz.append(&mut chunk_mesh.nz.clone())
             }
-            if cam_chunk_pos.z >= chunk_id.pos.z {
+            if cam_chunk_pos.z >= chunk_id.pos.z << chunk_id.lod {
                 mesh.pz.append(&mut chunk_mesh.pz.clone())
-            }*/
+            }
         });
 
         mesh
@@ -150,6 +139,24 @@ impl<G: Generator> Server<G> {
         self.level
             .chunk_op(chunk_id, |chunk| chunk.mesh_state.is_done())
             .is_some_and(|is_done| is_done)
+    }
+
+    fn debug_chunk_display(chunks: &Vec<ChunkID>, mesh: &mut Mesh) {
+        chunks.iter().for_each(|chunk_id| {
+            if chunk_id.lod == 0 {
+                return;
+            }
+
+            let pos = (chunk_id.pos * 32) << chunk_id.lod;
+
+            let size = chunk_id.lod + 5;
+            mesh.add_nx(pos, Texture::Debug, size);
+            mesh.add_px(pos, Texture::Debug, size);
+            mesh.add_ny(pos, Texture::Debug, size);
+            mesh.add_py(pos, Texture::Debug, size);
+            mesh.add_nz(pos, Texture::Debug, size);
+            mesh.add_pz(pos, Texture::Debug, size);
+        });
     }
 }
 

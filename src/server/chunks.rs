@@ -25,6 +25,10 @@ impl ChunkID {
         Self { lod, pos }
     }
 
+    pub fn total_pos(self) -> IVec3 {
+        self.pos << self.lod
+    }
+
     pub fn parent_lod(self) -> Self {
         Self {
             lod: self.lod + 1,

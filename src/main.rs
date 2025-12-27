@@ -138,6 +138,9 @@ fn main() {
     threadpool.drop()
 }
 
+const FULL_DETAL_DISTANCE: f32 = 5.;
+const RENDER_DISTANCE: f32 = 32.;
+
 #[inline]
 pub fn update<G: Generator>(
     change_mesh: &mut bool,
@@ -169,7 +172,7 @@ pub fn update<G: Generator>(
                 direction: cam_dir,
                 fov: Camera::<SmoothController>::FOV,
                 aspect_ratio: drawer.window.aspect_ratio,
-                render_distance: 64.,
+                render_distance: RENDER_DISTANCE,
             },
             threadpool,
             *lod_level,

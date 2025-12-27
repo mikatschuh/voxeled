@@ -15,7 +15,7 @@ fn collect_shader(path: PathBuf) -> String {
     for dir_entry in if let Ok(dir_iter) = fs::read_dir(&path) {
         dir_iter
     } else {
-        return shader_code;
+        panic!("wrong working directory");
     }
     .flatten()
     {

@@ -2,12 +2,11 @@ use glam::{IVec3, Vec3};
 
 use std::vec::IntoIter;
 
-use crate::server::chunks::ChunkID;
+use crate::{server::chunks::ChunkID, FULL_DETAL_DISTANCE};
 
 pub type LodLevel = u16;
 
 pub const MAX_LOD: LodLevel = 8;
-const FULL_DETAL_DISTANCE: f32 = 3.;
 
 #[allow(unused)]
 pub fn cube(edges: i32, lod_level: LodLevel) -> IntoIter<ChunkID> {
@@ -39,7 +38,7 @@ impl Frustum {
         let chunks = every_chunk_in_frustum(
             cam_chunk_pos,
             self.direction,
-            self.fov,
+            self.fov * 1.1,
             self.aspect_ratio,
             self.render_distance,
         );
@@ -57,7 +56,7 @@ impl Frustum {
             let candidate = ChunkID::new(lod, lod_pos);
 
             if chunk_ids.iter().any(|existing| {
-                chunk_overlaps(existing, candidate) && existing.lod <= candidate.lod
+                chunk_overlaps(existing, candidate) && existing.lod >= candidate.lod
             }) {
                 continue;
             }
