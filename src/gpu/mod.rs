@@ -9,8 +9,7 @@ mod texture;
 pub mod texture_set;
 pub mod window;
 
-use camera::Camera3d;
-use camera_controller::CameraController;
+use camera::Camera;
 use instance::Instance;
 use mesh::*;
 use texture::Texture;
@@ -20,12 +19,7 @@ use winit::event_loop::EventLoopWindowTarget;
 use crate::{gpu::buffer_pool::BufferPool, input::Inputs};
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
-pub struct Drawer<'a, CC: CameraController, C>
-where
-    C: Camera3d<CC>,
-{
-    _phantom: std::marker::PhantomData<CC>,
-
+pub struct Drawer<'a> {
     // bind groups:
     diffuse_bind_group: wgpu::BindGroup,
     camera_bind_group: wgpu::BindGroup,
@@ -53,7 +47,7 @@ where
     render_pipeline: wgpu::RenderPipeline,
     post_processing_pipeline: wgpu::RenderPipeline,
 
-    pub camera: &'a mut C,
+    pub camera: &'a mut Camera,
     camera_buffer: wgpu::Buffer,
     orientation_buffers: [wgpu::Buffer; 6],
 
@@ -67,14 +61,14 @@ where
     instance_buffer_pool: BufferPool,
 }
 
-impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
+impl<'a> Drawer<'a> {
     /// Diese Funktion erstellt einen Drawer der mit dem aktuellen Fenster verbunden ist.
     /// Außerdem nimmt sie einen PresentMode entgegen mit dem auf das Fenster gezeichnet werden soll.
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-        camera: &'a mut C,
-    ) -> Drawer<'a, CC, C> {
+        camera: &'a mut Camera,
+    ) -> Drawer<'a> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -313,7 +307,6 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
-            _phantom: std::marker::PhantomData,
             max_instances,
             diffuse_bind_group: {
                 let texture = Texture::from_images(

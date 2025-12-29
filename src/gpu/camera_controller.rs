@@ -1,26 +1,6 @@
 use glam::{Quat, Vec3};
 
 use crate::time::DeltaTime;
-
-pub trait CameraController {
-    const SENSITIVITY: f32;
-    const ROLL_SENSITIVITY: f32;
-
-    const ACC_CHANGE_SENSITIVITY: f32;
-    fn new(pos: Vec3, dir: Vec3, delta_time: DeltaTime) -> Self;
-
-    fn rotate_around_angle(&mut self, angle: Vec3);
-
-    fn update(&mut self, input_vector: Vec3);
-
-    fn update_acc(&mut self, change: f32);
-
-    fn toggle_flying(&mut self);
-
-    fn pos(&self) -> Vec3;
-    fn rot(&self) -> Quat;
-    fn dir(&self) -> Vec3;
-}
 #[derive(Clone, Debug)]
 pub struct SmoothController {
     acc: f32,
@@ -39,13 +19,11 @@ impl SmoothController {
     const STANDART_ACC: f32 = 50.0;
     const GRAVITY: f32 = 0.00981;
     const MAX_SPEED: f32 = 10000.0;
-}
-impl CameraController for SmoothController {
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
     const SENSITIVITY: f32 = 0.001;
     const ROLL_SENSITIVITY: f32 = 5.0;
 
-    fn new(pos: Vec3, dir: Vec3, delta_time: DeltaTime) -> Self {
+    pub fn new(pos: Vec3, dir: Vec3, delta_time: DeltaTime) -> Self {
         let rot = Quat::IDENTITY
             * Quat::from_axis_angle(Vec3::Y, dir.x)
             * Quat::from_axis_angle(Vec3::X, dir.y)
@@ -63,8 +41,12 @@ impl CameraController for SmoothController {
     }
 
     /// Dreht die Kamera um einen Winkel multipliziert mit der Kamera Sensitivität.
-    fn rotate_around_angle(&mut self, mut angle: Vec3) {
+    pub fn rotate_around_angle(&mut self, mut angle: Vec3) {
         angle.z *= Self::ROLL_SENSITIVITY;
+        let up = self.rot * Vec3::Y;
+        if up.y < 0.0 {
+            angle.x = -angle.x;
+        }
         self.angle += angle * Self::SENSITIVITY;
 
         self.rot = Quat::IDENTITY
@@ -74,7 +56,7 @@ impl CameraController for SmoothController {
     }
 
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
-    fn update(&mut self, input_vector: Vec3) {
+    pub fn update(&mut self, input_vector: Vec3) {
         let acc_vector = self.rot * (self.acc * input_vector);
         self.vel += acc_vector;
         self.vel *= (-Self::FRICTION * self.delta_time.get()).exp();
@@ -82,7 +64,7 @@ impl CameraController for SmoothController {
         self.pos += self.vel * self.delta_time.get();
     }
 
-    fn update_acc(&mut self, change: f32) {
+    pub fn update_acc(&mut self, change: f32) {
         let change = change * Self::ACC_CHANGE_SENSITIVITY;
         self.acc = (self.acc
             * if change >= 0.0 {
@@ -96,16 +78,16 @@ impl CameraController for SmoothController {
         );
     }
 
-    fn toggle_flying(&mut self) {
+    pub fn toggle_flying(&mut self) {
         self.flying = !self.flying
     }
-    fn pos(&self) -> Vec3 {
+    pub fn pos(&self) -> Vec3 {
         self.pos
     }
-    fn rot(&self) -> Quat {
+    pub fn rot(&self) -> Quat {
         self.rot
     }
-    fn dir(&self) -> Vec3 {
+    pub fn dir(&self) -> Vec3 {
         self.rot * Vec3::Z
     }
 }

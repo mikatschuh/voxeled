@@ -1,9 +1,6 @@
 use colored::Colorize;
 use glam::Vec3;
-use gpu::{
-    camera::{Camera, Camera3d},
-    camera_controller::{CameraController, SmoothController},
-};
+use gpu::{camera::Camera, camera_controller::SmoothController};
 use server::Server;
 use winit::{
     dpi::PhysicalSize,
@@ -47,7 +44,7 @@ fn main() {
         .unwrap();
 
     let mut delta_time = time::DeltaTimeMeter::new();
-    let mut camera: Camera<SmoothController> = gpu::camera::Camera::new(
+    let mut camera = gpu::camera::Camera::new(
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         delta_time.reader(),
@@ -146,7 +143,7 @@ pub fn update<G: Generator>(
     change_mesh: &mut bool,
     lod_level: &mut LodLevel,
     inputs: &mut Inputs,
-    drawer: &mut gpu::Drawer<'_, SmoothController, Camera<SmoothController>>,
+    drawer: &mut gpu::Drawer<'_>,
     server: &mut Server<G>,
     threadpool: &mut threadpool::Threadpool<G>,
 ) {
@@ -170,7 +167,7 @@ pub fn update<G: Generator>(
             Frustum {
                 cam_pos,
                 direction: cam_dir,
-                fov: Camera::<SmoothController>::FOV,
+                fov: Camera::FOV,
                 aspect_ratio: drawer.window.aspect_ratio,
                 render_distance: RENDER_DISTANCE,
             },
