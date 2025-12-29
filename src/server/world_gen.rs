@@ -21,7 +21,6 @@ pub struct MountainsAndValleys {
     pub noise: Noise,
     pub horizontal_area: f64,
     pub vertical_area: f64,
-    pub exponent: i32,
     pub number_of_octaves: usize,
 }
 
@@ -31,8 +30,7 @@ impl Generator for MountainsAndValleys {
             seed,
             noise: Noise::new(seed as u32),
             horizontal_area: 20.0,
-            exponent: 2,
-            vertical_area: 500.0,
+            vertical_area: 1200.0,
             number_of_octaves: 3,
         }
     }
@@ -52,7 +50,7 @@ impl Generator for MountainsAndValleys {
                 assert!(height >= 0.0);
                 for y in 0..32 {
                     voxels[x][y][z] = if y as i32 + chunk_id.pos.y * 32 << chunk_id.lod
-                        > (2.0.pow(height.pow(self.exponent)) * self.vertical_area) as i32
+                        > (2.0.pow(height) * self.vertical_area) as i32
                     {
                         VoxelType::random_weighted()
                     } else {
@@ -158,7 +156,7 @@ impl Generator for OpenCaves {
             noise: Noise::new(seed as u32),
             horizontal_area: 32.0, // 8.0,
             exponent: 1,
-            threshold: 0.5,
+            threshold: 0.6,
             number_of_octaves: 5,
         }
     }

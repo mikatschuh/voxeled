@@ -1,9 +1,9 @@
 use crate::gpu::texture_set::Texture;
 use crate::server::chunks::{ChunkID, Level};
-use crate::server::frustum::{chunk_overlaps, cube, Frustum, LodLevel, MAX_LOD};
+use crate::server::frustum::{chunk_overlaps, Frustum, LodLevel, MAX_LOD};
 use crate::server::job::Job;
 use crate::server::world_gen::Generator;
-use crate::{gpu::mesh::Mesh, threader::Threadpool};
+use crate::{gpu::mesh::Mesh, threadpool::Threadpool};
 use colored::Colorize;
 use crossbeam::sync::ShardedLock;
 use glam::IVec3;
@@ -47,8 +47,8 @@ impl<G: Generator> Server<G> {
         lod_level: LodLevel,
     ) -> Mesh {
         let mut mesh = Mesh::with_capacity(24_000_000);
-        let cam_chunk_pos = (frustum.cam_pos / 32.0).floor();
 
+        let cam_chunk_pos = (frustum.cam_pos / 32.0).as_ivec3();
         let chunks: Vec<ChunkID> = frustum.chunk_ids().collect();
 
         chunks.iter().copied().for_each(|chunk_id| {
@@ -66,33 +66,34 @@ impl<G: Generator> Server<G> {
             })
         });
 
-        let cam_chunk_pos = cam_chunk_pos.as_ivec3();
         let render_chunks = self.select_render_chunks(&chunks);
 
         render_chunks.into_iter().for_each(|chunk_id| {
             let Some(chunk_mesh) = self.level.chunk_op(chunk_id, |chunk| chunk.mesh.clone()) else {
                 return;
             };
+            let chunk_pos = chunk_id.total_pos();
+            let chunk_size = 1 << chunk_id.lod;
             let chunk_mesh = chunk_mesh.read();
 
             //mesh += chunk_mesh.clone();
 
-            if cam_chunk_pos.x <= chunk_id.pos.x << chunk_id.lod {
+            if cam_chunk_pos.x <= chunk_pos.x + chunk_size {
                 mesh.nx.append(&mut chunk_mesh.nx.clone())
             }
-            if cam_chunk_pos.x >= chunk_id.pos.x << chunk_id.lod {
+            if cam_chunk_pos.x >= chunk_pos.x {
                 mesh.px.append(&mut chunk_mesh.px.clone())
             }
-            if cam_chunk_pos.y <= chunk_id.pos.y << chunk_id.lod {
+            if cam_chunk_pos.y <= chunk_pos.y + chunk_size {
                 mesh.ny.append(&mut chunk_mesh.ny.clone())
             }
-            if cam_chunk_pos.y >= chunk_id.pos.y << chunk_id.lod {
+            if cam_chunk_pos.y >= chunk_pos.y {
                 mesh.py.append(&mut chunk_mesh.py.clone())
             }
-            if cam_chunk_pos.z <= chunk_id.pos.z << chunk_id.lod {
+            if cam_chunk_pos.z <= chunk_pos.z + chunk_size {
                 mesh.nz.append(&mut chunk_mesh.nz.clone())
             }
-            if cam_chunk_pos.z >= chunk_id.pos.z << chunk_id.lod {
+            if cam_chunk_pos.z >= chunk_pos.z {
                 mesh.pz.append(&mut chunk_mesh.pz.clone())
             }
         });

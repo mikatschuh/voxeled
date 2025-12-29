@@ -1,19 +1,3 @@
-/* threading goals
-
-verschiedene Arten von Tasks:
-
-Priority Tasks:
-
-    Werden versucht sofort auszuführen. Ignoriert alle anderen Tasks.
-
-First Tasks:
-
-    Werden normal ausgeführt.
-
-Second Tasks:
-
-    Werden ausgeführt sofern Zeit zu Verfügung steht.
-*/
 use crossbeam::deque::Injector;
 use parking_lot::RwLock;
 use std::{mem, sync::Arc, thread};

@@ -38,7 +38,7 @@ impl Frustum {
         let chunks = every_chunk_in_frustum(
             cam_chunk_pos,
             self.direction,
-            self.fov * 1.1,
+            self.fov,
             self.aspect_ratio,
             self.render_distance,
         );

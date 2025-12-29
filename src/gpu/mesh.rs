@@ -114,6 +114,15 @@ impl Mesh {
             kind: ((lod as u32) << 16) | texture as u32,
         });
     }
+
+    pub fn debug_cube(&mut self, pos: IVec3, size: u16) {
+        self.add_nx(pos, Texture::Debug, size);
+        self.add_px(pos, Texture::Debug, size);
+        self.add_ny(pos, Texture::Debug, size);
+        self.add_py(pos, Texture::Debug, size);
+        self.add_nz(pos, Texture::Debug, size);
+        self.add_pz(pos, Texture::Debug, size);
+    }
 }
 
 #[repr(C)]

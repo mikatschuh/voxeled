@@ -31,7 +31,7 @@ mod netcode;
 mod playground;
 mod random;
 mod server;
-mod threader;
+mod threadpool;
 mod time;
 
 fn main() {
@@ -63,7 +63,7 @@ fn main() {
         return;
     };
 
-    let mut threadpool = threader::Threadpool::new(num_cpus::get() - 1);
+    let mut threadpool = threadpool::Threadpool::new(num_cpus::get() - 1);
 
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
@@ -148,7 +148,7 @@ pub fn update<G: Generator>(
     inputs: &mut Inputs,
     drawer: &mut gpu::Drawer<'_, SmoothController, Camera<SmoothController>>,
     server: &mut Server<G>,
-    threadpool: &mut threader::Threadpool<G>,
+    threadpool: &mut threadpool::Threadpool<G>,
 ) {
     if inputs.esc {
         drawer.window.flip_focus()

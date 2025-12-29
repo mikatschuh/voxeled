@@ -1,4 +1,4 @@
-const distance_fog: f32 = 0.8;
+const distance_fog: f32 = 1.05;
 const SKY_COLOR: vec3<f32> = vec3(0.0); //vec3(0.2, 0.5, 0.7);
 
 fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
