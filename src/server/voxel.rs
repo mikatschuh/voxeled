@@ -3,6 +3,7 @@ use crate::gpu::texture_set::Texture;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoxelType {
     Air,
+    CrackedStone,
     Stone,
     Dirt,
 }
@@ -38,6 +39,7 @@ impl VoxelType {
     pub fn texture(self) -> Texture {
         match self {
             Stone => Texture::Stone,
+            CrackedStone => Texture::CrackedStone,
             Dirt => Texture::Dirt,
             _ => panic!("Air has no texture!"),
         }

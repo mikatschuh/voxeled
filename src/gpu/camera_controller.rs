@@ -35,10 +35,10 @@ pub struct SmoothController {
     delta_time: DeltaTime,
 }
 impl SmoothController {
-    const FRICTION: f32 = 0.5;
+    const FRICTION: f32 = 4.0;
     const STANDART_ACC: f32 = 50.0;
     const GRAVITY: f32 = 0.00981;
-    const MAX_SPEED: f32 = 0.1;
+    const MAX_SPEED: f32 = 10000.0;
 }
 impl CameraController for SmoothController {
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
@@ -90,7 +90,10 @@ impl CameraController for SmoothController {
             } else {
                 1.0 / change.abs()
             })
-        .clamp(Self::STANDART_ACC / 100.0, Self::STANDART_ACC * 100.0);
+        .clamp(
+            Self::STANDART_ACC / Self::MAX_SPEED,
+            Self::STANDART_ACC * Self::MAX_SPEED,
+        );
     }
 
     fn toggle_flying(&mut self) {

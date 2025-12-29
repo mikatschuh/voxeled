@@ -320,6 +320,8 @@ impl<'a, CC: CameraController, C: Camera3d<CC>> Drawer<'a, CC, C> {
                     &device,
                     &queue,
                     &[
+                        image::load_from_memory(texture_set::Texture::CrackedStone.bytes())
+                            .unwrap(),
                         image::load_from_memory(texture_set::Texture::Stone.bytes()).unwrap(),
                         image::load_from_memory(texture_set::Texture::Dirt.bytes()).unwrap(),
                         image::load_from_memory(texture_set::Texture::Debug.bytes()).unwrap(),

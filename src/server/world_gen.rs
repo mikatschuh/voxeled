@@ -147,6 +147,10 @@ pub struct OpenCaves {
     pub exponent: i32,
     pub threshold: f64,
     pub number_of_octaves: usize,
+
+    pub material_noise: Noise,
+    pub material_scale: f64,
+    pub material_threshold: f64,
 }
 
 impl Generator for OpenCaves {
@@ -156,26 +160,45 @@ impl Generator for OpenCaves {
             noise: Noise::new(seed as u32),
             horizontal_area: 32.0, // 8.0,
             exponent: 1,
-            threshold: 0.6,
-            number_of_octaves: 5,
+            threshold: 0.5,
+            number_of_octaves: 9,
+
+            material_noise: Noise::new(seed as u32 ^ 0b11010101010101010100011010101010),
+            material_scale: 10.0,
+            material_threshold: 0.7,
         }
     }
+
     fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
-                    let val = self.noise.get_octaves(
+                    let pos = (
                         (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
                         (y as i32 + chunk_id.pos.y * 32 << chunk_id.lod) as f64,
                         (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
+                    );
+
+                    let val = self.noise.get_octaves(
+                        pos.0,
+                        pos.1,
+                        pos.2,
                         self.horizontal_area,
                         self.number_of_octaves,
                     );
-                    *voxel = if val.pow(self.exponent) > self.threshold {
-                        VoxelType::random_weighted()
-                    } else {
+
+                    *voxel = if val.pow(self.exponent) <= self.threshold {
                         VoxelType::Air
+                    } else {
+                        let mat = self
+                            .material_noise
+                            .get(pos.0, pos.1, pos.2, self.material_scale);
+
+                        match mat {
+                            _ if mat >= self.material_threshold => VoxelType::CrackedStone,
+                            _ => VoxelType::Stone,
+                        }
                     }
                 }
             }

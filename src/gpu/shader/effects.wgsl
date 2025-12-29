@@ -4,8 +4,9 @@ const FOG_COLOR_LOW: vec3<f32> = vec3(0.02, 0.025, 0.03);
 const FOG_COLOR_HIGH: vec3<f32> = vec3(0.05, 0.055, 0.06);
 
 const FOG_START: f32 = 0.03;
-const FOG_END: f32 = 0.75;
-const FOG_DENSITY: f32 = 22.0;
+const FOG_END: f32 = 0.85;
+const FOG_DENSITY: f32 = 14.0;
+const FOG_MAX: f32 = 0.85;
 
 fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     let anti_aliased = fxaa(pos, color);
@@ -24,7 +25,7 @@ fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
     let fog_end = view_dist * FOG_END;
     let clamped_depth = min(depth, view_dist);
     let fog_t = clamp((clamped_depth - fog_start) / (fog_end - fog_start), 0.0, 1.0);
-    let fog = 1.0 - exp2(-fog_t * fog_t * FOG_DENSITY);
+    let fog = min(1.0 - exp2(-fog_t * fog_t * FOG_DENSITY), FOG_MAX);
     let fog_color = mix(FOG_COLOR_LOW, FOG_COLOR_HIGH, clamp(pos.y * 0.8 + 0.1, 0.0, 1.0));
 
     let base = mix(final_color, fog_color, fog);
