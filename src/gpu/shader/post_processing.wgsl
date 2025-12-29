@@ -33,8 +33,14 @@ var depth_img_s: sampler;
 @fragment
 fn post_processing(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let pos = in.tex_coords;
-    let depth = (1.0 - min((1.0 - textureSample(depth_img, depth_img_s, pos)) * 500.0, 1.0));
+    let depth_sample = textureSample(depth_img, depth_img_s, pos);
+    let depth = linearize_depth(depth_sample, 0.1, 10000.0);
     let color = textureSample(prev_img, prev_img_s, pos).rgb;
 
     return vec4<f32>(apply_effects(pos, color, depth), 1.0);
+}
+
+fn linearize_depth(depth: f32, near: f32, far: f32) -> f32 {
+    // WGPU uses 0..1 NDC depth (D3D/Vulkan), so no remap to [-1,1].
+    return (near * far) / (far - depth * (far - near)); // view-space distance
 }

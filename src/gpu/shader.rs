@@ -6,7 +6,12 @@ pub(super) fn make_shader() -> wgpu::ShaderModuleDescriptor<'static> {
     wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(
-            crate::gpu::shader::collect_shader(std::path::PathBuf::from("./src")).into(),
+            (collect_shader(std::path::PathBuf::from("./src"))
+                + &format!(
+                    "const RENDER_DISTANCE: f32 = {:.3};",
+                    crate::RENDER_DISTANCE
+                ))
+                .into(),
         ),
     }
 }

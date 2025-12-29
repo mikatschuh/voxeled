@@ -142,8 +142,7 @@ fn every_chunk_in_frustum(
     for z in min.z..=max.z {
         for y in min.y..=max.y {
             for x in min.x..=max.x {
-                let chunk_pos = Vec3::new(x as f32, y as f32, z as f32);
-                let delta = chunk_pos - position;
+                let delta = Vec3::new(x as f32, y as f32, z as f32) - position;
 
                 let view_x = delta.dot(right);
                 let view_y = delta.dot(up);

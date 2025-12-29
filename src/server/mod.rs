@@ -66,9 +66,9 @@ impl<G: Generator> Server<G> {
             })
         });
 
-        let render_chunks = self.select_render_chunks(&chunks);
+        let chunks = self.select_render_chunks(&chunks);
 
-        render_chunks.into_iter().for_each(|chunk_id| {
+        chunks.into_iter().for_each(|chunk_id| {
             let Some(chunk_mesh) = self.level.chunk_op(chunk_id, |chunk| chunk.mesh.clone()) else {
                 return;
             };

@@ -150,5 +150,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         tint = vec3(0.5, 0.5, 2.);
     }*/
 
-    return vec4<f32>(shading * color.rgb * min(1.0 / (max(-in.height, 0.0) * 0.001), 1.0), color.a);
+    return vec4<f32>(shading * color.rgb, color.a);
 }

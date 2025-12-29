@@ -139,7 +139,7 @@ fn main() {
 }
 
 const FULL_DETAL_DISTANCE: f32 = 5.;
-const RENDER_DISTANCE: f32 = 32.;
+const RENDER_DISTANCE: f32 = 48.;
 
 #[inline]
 pub fn update<G: Generator>(
