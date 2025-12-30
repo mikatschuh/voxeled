@@ -1,6 +1,6 @@
 use crate::gpu::texture_set::Texture;
 use crate::server::chunks::{ChunkID, Level};
-use crate::server::frustum::{chunk_overlaps, Frustum, LodLevel, MAX_LOD};
+use crate::server::frustum::{chunk_overlaps, cube, Frustum, LodLevel, MAX_LOD};
 use crate::server::job::Job;
 use crate::server::world_gen::Generator;
 use crate::{gpu::mesh::Mesh, threadpool::Threadpool};
@@ -40,17 +40,12 @@ impl<G: Generator> Server<G> {
         }
     }
 
-    pub fn get_mesh(
-        &mut self,
-        frustum: Frustum,
-        threadpool: &mut Threadpool<G>,
-        lod_level: LodLevel,
-    ) -> Mesh {
+    pub fn get_mesh(&mut self, frustum: Frustum, threadpool: &mut Threadpool<G>) -> Mesh {
         let mut mesh = Mesh::with_capacity(24_000_000);
 
         let cam_chunk_pos = (frustum.cam_pos / 32.0).as_ivec3();
 
-        let chunks: Vec<ChunkID> = frustum.chunk_ids().collect();
+        let chunks: Vec<ChunkID> = frustum.chunk_ids().collect(); // cube(8, 0).collect();
 
         chunks.iter().copied().for_each(|chunk_id| {
             if self.mesh_ready(chunk_id) {
@@ -68,8 +63,6 @@ impl<G: Generator> Server<G> {
         });
 
         let chunks = self.select_render_chunks(&chunks);
-
-        let mut chunk_count = 0;
 
         chunks.into_iter().for_each(|chunk_id| {
             let Some(chunk_mesh) = self.level.chunk_op(chunk_id, |chunk| chunk.mesh.clone()) else {
@@ -99,13 +92,28 @@ impl<G: Generator> Server<G> {
             if cam_chunk_pos.z >= chunk_pos.z {
                 mesh.pz.append(&mut chunk_mesh.pz.clone())
             }
-
-            chunk_count += 1;
         });
 
-        println!("count: {chunk_count}");
-
         mesh
+    }
+
+    pub fn is_solid_physically(&self, world_voxel: IVec3) -> bool {
+        self.voxel_at_world(world_voxel)
+            .is_none_or(|voxel| voxel.is_physically_solid())
+    }
+
+    pub fn voxel_at_world(&self, world_voxel: IVec3) -> Option<voxel::VoxelType> {
+        let (chunk_pos, local_pos) = chunk_and_local(world_voxel);
+
+        self.level
+            .chunk_op(chunks::ChunkID::new(0, chunk_pos), |chunk| {
+                let guard = chunk.voxel.read();
+                let voxel = guard.as_ref()?;
+                let x = local_pos.x as usize;
+                let y = local_pos.y as usize;
+                let z = local_pos.z as usize;
+                Some(voxel[x][y][z])
+            })?
     }
 
     fn select_render_chunks(&self, chunks: &[ChunkID]) -> Vec<ChunkID> {
@@ -166,6 +174,21 @@ impl<G: Generator> Server<G> {
             mesh.add_pz(pos, Texture::Debug, size);
         });
     }
+}
+
+fn chunk_and_local(world_voxel: IVec3) -> (IVec3, IVec3) {
+    let chunk_x = world_voxel.x.div_euclid(32);
+    let chunk_y = world_voxel.y.div_euclid(32);
+    let chunk_z = world_voxel.z.div_euclid(32);
+
+    let local_x = world_voxel.x.rem_euclid(32);
+    let local_y = world_voxel.y.rem_euclid(32);
+    let local_z = world_voxel.z.rem_euclid(32);
+
+    (
+        IVec3::new(chunk_x, chunk_y, chunk_z),
+        IVec3::new(local_x, local_y, local_z),
+    )
 }
 
 #[allow(dead_code)]

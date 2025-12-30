@@ -11,12 +11,10 @@ use winit::{
 
 use crate::{
     input::Inputs,
-    server::{
-        frustum::{Frustum, LodLevel},
-        world_gen::Generator,
-    },
+    server::{frustum::Frustum, world_gen::Generator},
 };
 
+mod collision;
 mod console;
 mod gpu;
 mod input;
@@ -45,8 +43,9 @@ fn main() {
 
     let mut delta_time = time::DeltaTimeMeter::new();
     let mut camera = gpu::camera::Camera::new(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, -50.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        true,
         delta_time.reader(),
     );
 
@@ -71,7 +70,6 @@ fn main() {
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
     let mut change_mesh = true;
-    let mut lod_level = 0;
 
     // ping the server:
 
@@ -106,7 +104,6 @@ fn main() {
                                 } else {
                                     update(
                                         &mut change_mesh,
-                                        &mut lod_level,
                                         inputs,
                                         &mut drawer,
                                         &mut server,
@@ -116,7 +113,8 @@ fn main() {
                                     drawer.draw(control_flow);
                                 }
                                 if frame_number % 60 == 0 {
-                                    println!("{}\n", threadpool.debug_log())
+                                    // println!("{}\n", threadpool.debug_log())
+                                    threadpool.debug_log();
                                 }
 
                                 input_event_filter.frame_done();
@@ -137,46 +135,98 @@ fn main() {
 
 const FULL_DETAL_DISTANCE: f32 = 5.;
 const RENDER_DISTANCE: f32 = 48.;
+const GRAVITY: f32 = 9.81;
+const WALK_JUMP_SPEED: f32 = 5000.;
 
 #[inline]
 pub fn update<G: Generator>(
     change_mesh: &mut bool,
-    lod_level: &mut LodLevel,
     inputs: &mut Inputs,
     drawer: &mut gpu::Drawer<'_>,
     server: &mut Server<G>,
     threadpool: &mut threadpool::Threadpool<G>,
 ) {
-    if inputs.esc {
+    if inputs.pause {
         drawer.window.flip_focus()
     }
     if inputs.remesh {
         *change_mesh = !*change_mesh;
     }
-    *lod_level += inputs.lod_up as u16;
-    *lod_level -= inputs.lod_down as u16;
 
-    if drawer.window.focused() {
+    drawer.update_cam(|camera| {
+        if inputs.free_cam {
+            camera.toggle_free_cam();
+        }
+
         if let Some(mouse_motion) = inputs.mouse_motion {
-            drawer.camera.rotate_around_angle(glam::Vec3::new(
+            camera.rotate_around_angle(glam::Vec3::new(
                 -mouse_motion.x as f32,
-                -mouse_motion.y as f32,
+                mouse_motion.y as f32,
                 0.,
             ));
         }
 
         if let Some(scroll) = inputs.mouse_wheel {
-            drawer.camera.update_acc(scroll.y)
+            camera.update_acc(scroll.y)
         }
 
-        drawer.camera.update(glam::Vec3::new(
-            inputs.right.process() - inputs.left.process(),
-            inputs.down.process() - inputs.up.process(),
-            inputs.backwards.process() - inputs.forward.process(),
-        ));
-    }
+        let free_cam = camera.free_cam();
+        let on_ground = !free_cam && collision::is_on_ground(server, camera.pos());
 
-    drawer.update();
+        let input_vector = if free_cam {
+            glam::Vec3::new(
+                inputs.right.process_f32() - inputs.left.process_f32(),
+                inputs.down.process_f32() - inputs.up.process_f32(),
+                inputs.backwards.process_f32() - inputs.forward.process_f32(),
+            )
+        } else if on_ground {
+            _ = inputs.up.process_f32();
+            _ = inputs.down.process_f32();
+
+            glam::Vec3::new(
+                inputs.right.process_f32() - inputs.left.process_f32(),
+                0.0,
+                inputs.backwards.process_f32() - inputs.forward.process_f32(),
+            )
+        } else {
+            _ = inputs.right.process_f32();
+            _ = inputs.left.process_f32();
+            _ = inputs.up.process_f32();
+            _ = inputs.down.process_f32();
+            _ = inputs.backwards.process_f32();
+            _ = inputs.forward.process_f32();
+            Vec3::ZERO
+        };
+        camera.add_input(input_vector);
+        if !free_cam {
+            let mut vel = camera.vel();
+            vel.y += GRAVITY * camera.delta_time();
+            if inputs.space.just_pressed() && on_ground {
+                vel.y -= WALK_JUMP_SPEED;
+            }
+            camera.set_vel(vel)
+        };
+
+        camera.apply_friction();
+
+        camera.advance_pos(|start_pos, intended_pos| {
+            let delta = intended_pos - start_pos;
+
+            let sweep = collision::move_player_with_sweep(server, start_pos, delta);
+            let vel = if sweep.hit {
+                let vel = delta;
+                let adjusted_vel = vel - sweep.normal * vel.dot(sweep.normal);
+                adjusted_vel
+            } else {
+                Vec3::ZERO
+            };
+            (vel, sweep.position)
+        });
+
+        if inputs.status {
+            println!("FPS: {} pos: {},", 1. / camera.delta_time(), camera.pos())
+        }
+    });
 
     if *change_mesh {
         // let now = Instant::now();
@@ -190,7 +240,6 @@ pub fn update<G: Generator>(
                 render_distance: RENDER_DISTANCE,
             },
             threadpool,
-            *lod_level,
         ));
     }
 }

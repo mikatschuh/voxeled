@@ -50,7 +50,7 @@ impl Generator for MountainsAndValleys {
                 assert!(height >= 0.0);
                 for y in 0..32 {
                     voxels[x][y][z] = if y as i32 + chunk_id.pos.y * 32 << chunk_id.lod
-                        > (2.0.pow(height) * self.vertical_area) as i32
+                        < (2.0.pow(height) * self.vertical_area) as i32
                     {
                         VoxelType::random_weighted()
                     } else {
@@ -106,7 +106,7 @@ impl Generator for RainDrops {
         Self {
             seed,
             noise: Noise::new(seed as u32),
-            horizontal_area: 20.0,
+            horizontal_area: 5.0,
             exponent: 1,
             threshold: 0.8,
             number_of_octaves: 1,
@@ -151,6 +151,7 @@ pub struct OpenCaves {
     pub material_noise: Noise,
     pub material_scale: f64,
     pub material_threshold: f64,
+    pub material_octaves: usize,
 }
 
 impl Generator for OpenCaves {
@@ -164,8 +165,9 @@ impl Generator for OpenCaves {
             number_of_octaves: 9,
 
             material_noise: Noise::new(seed as u32 ^ 0b11010101010101010100011010101010),
-            material_scale: 10.0,
-            material_threshold: 0.7,
+            material_scale: 8.0,
+            material_threshold: 0.6,
+            material_octaves: 3,
         }
     }
 
@@ -191,9 +193,13 @@ impl Generator for OpenCaves {
                     *voxel = if val.pow(self.exponent) <= self.threshold {
                         VoxelType::Air
                     } else {
-                        let mat = self
-                            .material_noise
-                            .get(pos.0, pos.1, pos.2, self.material_scale);
+                        let mat = self.material_noise.get_octaves(
+                            pos.0,
+                            pos.1,
+                            pos.2,
+                            self.material_scale,
+                            self.material_octaves,
+                        );
 
                         match mat {
                             _ if mat >= self.material_threshold => VoxelType::CrackedStone,

@@ -28,6 +28,10 @@ impl VoxelType {
         }
     }
 
+    pub fn is_physically_solid(self) -> bool {
+        self != VoxelType::Air
+    }
+
     pub fn is_solid_u32(self) -> u32 {
         if self as u8 > 0 {
             0b1000_0000__0000_0000__0000_0000__0000_0000

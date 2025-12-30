@@ -2,7 +2,6 @@ use colored::Colorize;
 use num::{BigInt, BigRational, FromPrimitive};
 use rustyline::DefaultEditor;
 use std::{io, str::Chars, thread};
-use wgpu::core::{command, validation::NumericType};
 
 use crate::{
     console::error::{CommandError, NumberParsingError},

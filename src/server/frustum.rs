@@ -130,13 +130,17 @@ fn every_chunk_in_frustum(
 ) -> Vec<IVec3> {
     let mut points = Vec::new();
 
-    let forward = (-direction).normalize();
+    let forward = if direction.length_squared() > 0.0 {
+        direction.normalize()
+    } else {
+        Vec3::Z
+    };
     let right = if forward.y.abs() > 0.999 {
         Vec3::new(1.0, 0.0, 0.0)
     } else {
-        forward.cross(Vec3::Y).normalize()
+        Vec3::Y.cross(forward).normalize()
     };
-    let up = right.cross(forward).normalize();
+    let up = forward.cross(right).normalize();
 
     let tan_half_fov = (fov / 2.0).tan();
     let max_distance = render_distance.max(0.0);

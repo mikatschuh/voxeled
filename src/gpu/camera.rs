@@ -1,9 +1,13 @@
 use glam::{Mat4, Quat, Vec3};
 
+use crate::time::DeltaTime;
+
 // pub use super::exotic_cameras::CinematicThirdPersonCamera;
 
 #[derive(Clone, Debug)]
 pub struct Camera {
+    free_cam: bool,
+
     acc: f32,
 
     vel: Vec3,
@@ -12,15 +16,13 @@ pub struct Camera {
     rot: Quat,
     angle: Vec3,
 
-    flying: bool,
     delta_time: crate::time::DeltaTime,
 }
 
 impl Camera {
     const FRICTION: f32 = 4.0;
-    const STANDART_ACC: f32 = 50.0;
-    const GRAVITY: f32 = 0.00981;
-    const MAX_SPEED: f32 = 10000.0;
+    const STANDART_ACC: f32 = 400.0;
+    const MAX_SPEED: f32 = 100.0;
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
     const SENSITIVITY: f32 = 0.001;
     const ROLL_SENSITIVITY: f32 = 5.0;
@@ -30,11 +32,13 @@ impl Camera {
 
     pub const FOV: f32 = std::f32::consts::FRAC_PI_2;
 
-    pub fn new(pos: Vec3, dir: Vec3, delta_time: crate::time::DeltaTime) -> Self {
-        let rot = Quat::IDENTITY
-            * Quat::from_axis_angle(Vec3::Y, dir.x)
-            * Quat::from_axis_angle(Vec3::X, dir.y)
-            * Quat::from_axis_angle(Vec3::Z, dir.z);
+    pub fn new(pos: Vec3, dir: Vec3, free_cam: bool, delta_time: DeltaTime) -> Self {
+        let forward = if dir.length_squared() > 0.0 {
+            dir.normalize()
+        } else {
+            -Vec3::Z
+        };
+        let rot = Quat::from_rotation_arc(Vec3::Z, forward);
 
         Self {
             pos,
@@ -42,7 +46,7 @@ impl Camera {
             angle: Vec3::from(rot.to_euler(glam::EulerRot::YXZ)),
             vel: Vec3::ZERO,
             acc: Self::STANDART_ACC,
-            flying: true,
+            free_cam,
             delta_time,
         }
     }
@@ -63,12 +67,22 @@ impl Camera {
     }
 
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
-    pub fn update(&mut self, input_vector: Vec3) {
+    pub fn add_input(&mut self, input_vector: Vec3) {
         let acc_vector = self.rot * (self.acc * input_vector);
         self.vel += acc_vector;
-        self.vel *= (-Self::FRICTION * self.delta_time.get()).exp();
+    }
 
-        self.pos += self.vel * self.delta_time.get();
+    pub fn add_acc(&mut self, acc: Vec3) {
+        self.vel += acc * self.delta_time();
+    }
+
+    pub fn apply_friction(&mut self) {
+        self.vel *= (-Self::FRICTION * self.delta_time()).exp();
+    }
+
+    /// Takes a function which takes the current and the next position and returns the next velocity and position
+    pub fn advance_pos(&mut self, mut f: impl FnMut(Vec3, Vec3) -> (Vec3, Vec3)) {
+        (self.vel, self.pos) = f(self.pos, self.pos + self.vel * self.delta_time.get());
     }
 
     pub fn update_acc(&mut self, change: f32) {
@@ -85,12 +99,32 @@ impl Camera {
         );
     }
 
-    pub fn toggle_flying(&mut self) {
-        self.flying = !self.flying
+    pub fn toggle_free_cam(&mut self) {
+        self.free_cam = !self.free_cam
+    }
+
+    pub fn free_cam(&self) -> bool {
+        self.free_cam
+    }
+
+    pub fn delta_time(&self) -> f32 {
+        self.delta_time.get()
     }
 
     pub fn pos(&self) -> Vec3 {
         self.pos
+    }
+
+    pub fn set_pos(&mut self, pos: Vec3) {
+        self.pos = pos;
+    }
+
+    pub fn vel(&self) -> Vec3 {
+        self.vel
+    }
+
+    pub fn set_vel(&mut self, vel: Vec3) {
+        self.vel = vel;
     }
 
     pub fn rot(&self) -> Quat {
@@ -98,7 +132,7 @@ impl Camera {
     }
 
     pub fn dir(&self) -> Vec3 {
-        self.rot * Vec3::Z
+        self.rot * -Vec3::Z
     }
 
     /// Diese Funktion gibt eine 4*4 Matrix zurück um die Punkte auf den Bildschirm zu projezieren.

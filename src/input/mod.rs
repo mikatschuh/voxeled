@@ -5,7 +5,7 @@ use std::{
     mem,
     ops::{Range, Sub},
     thread::sleep,
-    time::{Duration, Instant},
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use serde::Deserialize;
@@ -23,82 +23,112 @@ mod error;
 /// Enthält den Zustand einer Taste.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum FrameState {
-    Pressed,
-    JustPressed,
-
     NotPressed,
+
+    JustPressed,
+    Pressed,
+
     JustReleased,
+    Released,
 }
 
 impl From<FrameState> for bool {
     fn from(state: FrameState) -> Self {
         match state {
-            FrameState::Pressed | FrameState::JustPressed => true,
-            FrameState::NotPressed | FrameState::JustReleased => false,
+            FrameState::JustPressed | FrameState::Pressed => true,
+            FrameState::NotPressed | FrameState::Released | FrameState::JustReleased => false,
         }
     }
 }
 
-impl Sub for FrameState {
-    type Output = f32;
-    fn sub(self, other: Self) -> Self::Output {
-        self as u32 as f32 - other as u32 as f32
-    }
-}
-
+#[derive(Clone, Debug)]
 pub struct InputState {
-    pub frame_state: FrameState,
+    pub state: FrameState,
     pub timestamp: Instant,
 }
 
 #[allow(dead_code)]
 impl InputState {
+    fn frame_done(&mut self) {
+        self.state = match self.state {
+            FrameState::JustPressed => FrameState::Pressed,
+            FrameState::JustReleased => FrameState::Released,
+            _ => return,
+        }
+    }
+
+    pub fn release(&mut self) {
+        self.state = match self.state {
+            FrameState::NotPressed | FrameState::JustPressed | FrameState::Pressed => {
+                FrameState::JustReleased
+            }
+
+            FrameState::JustReleased => FrameState::Released,
+
+            _ => return,
+        };
+
+        self.timestamp = Instant::now();
+    }
+
+    pub fn press(&mut self) {
+        self.state = match self.state {
+            FrameState::NotPressed | FrameState::JustReleased | FrameState::Released => {
+                FrameState::JustPressed
+            }
+            // FrameState::JustPressed => FrameState::Pressed,
+            _ => return,
+        };
+
+        self.timestamp = Instant::now()
+    }
+
     /// Methode die zurück gibt ob eine Taste in diesem Frame gedrückt wurde.
     /// Die Methode gibt nur wahr zurück wenn die Taste im vorherigen Frame nicht gedrückt wurde.
     pub fn just_pressed(&self) -> bool {
-        self.frame_state == FrameState::JustPressed
+        self.state == FrameState::JustPressed
     }
 
     /// Methode die zurückgibt ob die Taste gerade gedrückt ist.
     pub fn pressed(&self) -> bool {
-        self.frame_state.into()
+        self.state.into()
     }
 
     /// Methode die zurück gibt ob eine Taste in diesem Frame losgelassen wurde.
     pub fn just_released(&self) -> bool {
-        self.frame_state == FrameState::JustReleased
+        self.state == FrameState::JustReleased
     }
 
     /// Methode die die Zeit in Nanosekunden zurückgibt die die Taste aktuell schon gedrückt wurde.
-    pub fn time_pressed(&self) -> Option<u128> {
-        if self.frame_state.into() {
-            Some(self.timestamp.elapsed().as_nanos())
+    pub fn time_pressed(&self) -> Option<f64> {
+        if self.state.into() {
+            Some(self.timestamp.elapsed().as_secs_f64())
         } else {
             None
         }
     }
 
-    pub fn time_input_present(&self) -> f32 {
-        if self.frame_state.into() {
-            self.timestamp.elapsed().as_secs_f32()
+    pub fn timestamp(&self) -> f64 {
+        if self.state.into() {
+            self.timestamp.elapsed().as_secs_f64()
         } else {
             0.0
         }
     }
 
     /// Methode die die Zeit in Nanosekunden zurückgibt die die Taste jetzt schon losgelassen wurde.
-    pub fn time_released(&self) -> Option<u128> {
-        if !<FrameState as Into<bool>>::into(self.frame_state) {
-            Some(self.timestamp.elapsed().as_nanos())
+    pub fn time_released(&self) -> Option<f64> {
+        if !<FrameState as Into<bool>>::into(self.state) {
+            Some(self.timestamp.elapsed().as_secs_f64())
         } else {
             None
         }
     }
 
     /// Methode die überprüft ob sich die Zeit die eine Taste schon gedrückt wurde in einem gegebenen Bereich befindet.
-    pub fn pressed_for(&self, time: Range<u128>) -> bool {
-        if <FrameState as Into<bool>>::into(self.frame_state) {
-            let time_pressed = self.timestamp.elapsed().as_nanos();
+    pub fn pressed_for(&self, time: Range<f64>) -> bool {
+        if <FrameState as Into<bool>>::into(self.state) {
+            let time_pressed = self.timestamp.elapsed().as_secs_f64();
             time.start <= time_pressed && time_pressed <= time.end
         } else {
             false
@@ -107,9 +137,9 @@ impl InputState {
 
     /// Methode die überprüft ob sich die Zeit die eine Taste schon nicht mehr gedrückt wurde
     /// in einem gegebenen Bereich befindet.
-    pub fn released_for(&self, time: Range<u128>) -> bool {
-        if !<FrameState as Into<bool>>::into(self.frame_state) {
-            let time_released = self.timestamp.elapsed().as_nanos();
+    pub fn released_for(&self, time: Range<f64>) -> bool {
+        if let FrameState::JustReleased | FrameState::Released = self.state {
+            let time_released = self.timestamp.elapsed().as_secs_f64();
             time.start <= time_released && time_released <= time.end
         } else {
             false
@@ -130,26 +160,31 @@ pub enum DownTime {
 }
 
 impl DownTime {
-    pub fn process(&mut self) -> f32 {
+    #[must_use]
+    pub fn process(&mut self) -> f64 {
         let secs = match self {
             Self::Nothing => 0.0,
             Self::Instant(instant) => {
-                let secs = instant.elapsed().as_secs_f32();
+                let secs = instant.elapsed().as_secs_f64();
                 *instant = Instant::now();
                 secs
             }
             Self::Duration(duration) => {
-                let secs = duration.as_secs_f32();
+                let secs = duration.as_secs_f64();
                 *self = Self::Nothing;
                 secs
             }
             Self::DurationAndInstant { duration, instant } => {
-                let secs = duration.as_secs_f32() + instant.elapsed().as_secs_f32();
+                let secs = duration.as_secs_f64() + instant.elapsed().as_secs_f64();
                 *self = Self::Instant(Instant::now());
                 secs
             }
         };
         secs
+    }
+
+    pub fn process_f32(&mut self) -> f32 {
+        self.process() as f32
     }
 
     fn press(&mut self) {
@@ -182,7 +217,7 @@ impl DownTime {
 const VEC32_ZERO: PhysicalPosition<f32> = PhysicalPosition::new(0., 0.);
 const VEC64_ZERO: PhysicalPosition<f64> = PhysicalPosition::new(0., 0.);
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct Inputs {
     pub forward: DownTime,
     pub backwards: DownTime,
@@ -194,13 +229,45 @@ pub struct Inputs {
     pub mouse_motion: Option<PhysicalPosition<f64>>,
     pub mouse_wheel: Option<PhysicalPosition<f32>>,
 
-    pub esc: bool,
+    pub pause: bool,
     pub remesh: bool,
     pub lod_up: bool,
     pub lod_down: bool,
+    pub free_cam: bool,
+    pub status: bool,
+
+    pub space: InputState,
 }
 
+pub const DOUBLE_CLICK_TIMESPAN: Duration = Duration::from_millis(500);
+
 impl Inputs {
+    fn new() -> Self {
+        Self {
+            forward: DownTime::Nothing,
+            backwards: DownTime::Nothing,
+            left: DownTime::Nothing,
+            right: DownTime::Nothing,
+            up: DownTime::Nothing,
+            down: DownTime::Nothing,
+
+            mouse_motion: None,
+            mouse_wheel: None,
+
+            pause: false,
+            remesh: false,
+            lod_up: false,
+            lod_down: false,
+            free_cam: false,
+            status: false,
+
+            space: InputState {
+                state: FrameState::NotPressed,
+                timestamp: Instant::now(),
+            },
+        }
+    }
+
     fn every_downtime(&mut self) -> IntoIter<&mut DownTime, 6> {
         [
             &mut self.forward,
@@ -241,7 +308,7 @@ impl InputEventFilter {
 
         Ok(InputEventFilter {
             // key_map,
-            inputs: Inputs::default(),
+            inputs: Inputs::new(),
         })
     }
 
@@ -256,7 +323,7 @@ impl InputEventFilter {
                 DeviceEvent::MouseMotion { delta } => {
                     self.inputs.mouse_motion = Some(PhysicalPosition::new(
                         self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).x + delta.0,
-                        self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).y - delta.1,
+                        self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).y + delta.1,
                     ));
                 }
                 _ => return false,
@@ -286,15 +353,16 @@ impl InputEventFilter {
 
                     return false;
                 }
+
                 WindowEvent::KeyboardInput { event, .. } => {
                     let key_code = match event.physical_key {
                         PhysicalKey::Code(key_code) => key_code,
                         _ => return false,
                     };
 
-                    let down_time = match key_code {
+                    match key_code {
                         KeyCode::Escape if event.state.is_pressed() => {
-                            self.inputs.esc = true;
+                            self.inputs.pause = true;
                             return true;
                         }
                         KeyCode::KeyR if event.state.is_pressed() => {
@@ -309,8 +377,30 @@ impl InputEventFilter {
                             self.inputs.lod_down = true;
                             return true;
                         }
+                        KeyCode::KeyP if event.state.is_pressed() => {
+                            self.inputs.status = true;
+                            return true;
+                        }
 
-                        _ if !keyboard_focus => return false,
+                        KeyCode::Space if !event.state.is_pressed() => {
+                            self.inputs.space.release();
+                        }
+
+                        KeyCode::Space => {
+                            if self.inputs.space.released_for(0.0..0.5) {
+                                self.inputs.free_cam = true;
+                                println!("space double pressed!")
+                            }
+
+                            self.inputs.space.press();
+                        }
+                        _ => {}
+                    }
+                    if !keyboard_focus {
+                        return false;
+                    }
+
+                    let down_time = match key_code {
                         KeyCode::KeyW => &mut self.inputs.forward,
                         KeyCode::KeyS => &mut self.inputs.backwards,
                         KeyCode::KeyA => &mut self.inputs.left,
@@ -341,9 +431,13 @@ impl InputEventFilter {
         self.inputs.mouse_motion = None;
         self.inputs.mouse_wheel = None;
 
-        self.inputs.esc = false;
+        self.inputs.pause = false;
         self.inputs.remesh = false;
         self.inputs.lod_up = false;
         self.inputs.lod_down = false;
+        self.inputs.free_cam = false;
+        self.inputs.status = false;
+
+        self.inputs.space.frame_done();
     }
 }

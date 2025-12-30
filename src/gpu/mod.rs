@@ -15,7 +15,7 @@ use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::event_loop::EventLoopWindowTarget;
 
-use crate::{gpu::buffer_pool::BufferPool, input::Inputs};
+use crate::gpu::buffer_pool::BufferPool;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a> {
@@ -70,7 +70,7 @@ impl<'a> Drawer<'a> {
     ) -> Drawer<'a> {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             #[cfg(not(target_arch = "wasm32"))]
             backends: wgpu::Backends::PRIMARY,
             #[cfg(target_arch = "wasm32")]
@@ -105,10 +105,7 @@ impl<'a> Drawer<'a> {
             ..Default::default()
         };
 
-        let future = adapter.request_device(
-            &device_descriptor,
-            None, // Trace path
-        );
+        let future = adapter.request_device(&device_descriptor);
         let surface_caps = surface.get_capabilities(&adapter);
         // Shader code in this tutorial assumes an sRGB surface texture. Using a different
         // one will result in all the colors coming out darker. If you want to support non
@@ -131,6 +128,9 @@ impl<'a> Drawer<'a> {
             desired_maximum_frame_latency: 2,
         };
         let (device, queue) = future.await.unwrap();
+        if config.width > 0 && config.height > 0 {
+            surface.configure(&device, &config);
+        }
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -382,13 +382,13 @@ impl<'a> Drawer<'a> {
                 ),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[Vertex::desc(), Instance::desc()],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: config.format,
                         blend: Some(wgpu::BlendState {
@@ -449,13 +449,13 @@ impl<'a> Drawer<'a> {
                     ),
                     vertex: wgpu::VertexState {
                         module: &shader,
-                        entry_point: "full_screen_quat",
+                        entry_point: Some("full_screen_quat"),
                         buffers: &[], // Keine Vertex-Daten, weil wir ein Fullscreen-Quad generieren
                         compilation_options: wgpu::PipelineCompilationOptions::default(),
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: "post_processing",
+                        entry_point: Some("post_processing"),
                         targets: &[Some(wgpu::ColorTargetState {
                             format: config.format, // Das Renderziel (z. B. Swapchain-Format)
                             blend: Some(wgpu::BlendState::REPLACE), // Einfaches Overwriting
@@ -550,12 +550,15 @@ impl<'a> Drawer<'a> {
     }
 
     /// Eine Funktion um den Status Quo zu verändern.
-    pub fn update(&mut self) {
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
-        );
+    pub fn update_cam(&mut self, mut f: impl FnMut(&mut Camera)) {
+        if self.window.focused() {
+            f(self.camera);
+            self.queue.write_buffer(
+                &self.camera_buffer,
+                0,
+                bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
+            );
+        }
     }
 
     pub fn update_mesh(&mut self, mesh: Mesh) {
@@ -580,6 +583,7 @@ impl<'a> Drawer<'a> {
             Err(wgpu::SurfaceError::Timeout) => {
                 log::warn!("Surface timeout")
             }
+            Err(wgpu::SurfaceError::Other) => log::warn!("generic error while drawing"),
         }
     }
     fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
