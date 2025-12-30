@@ -1,5 +1,4 @@
 pub mod camera;
-pub mod camera_controller;
 pub mod instance;
 // pub mod exotic_cameras;
 mod buffer_pool;
@@ -165,6 +164,7 @@ impl<'a> Drawer<'a> {
             ),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+
         let orientation_buffers = [
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Orientation Buffer"),
@@ -550,33 +550,7 @@ impl<'a> Drawer<'a> {
     }
 
     /// Eine Funktion um den Status Quo zu verändern.
-    pub fn update(&mut self, inputs: &mut Inputs) {
-        if self.window.focused() {
-            if let Some(mouse_motion) = inputs.mouse_motion {
-                self.camera
-                    .controller()
-                    .rotate_around_angle(glam::Vec3::new(
-                        -mouse_motion.x as f32,
-                        -mouse_motion.y as f32,
-                        0.,
-                    ));
-            }
-
-            if let Some(scroll) = inputs.mouse_wheel {
-                self.camera.controller().update_acc(scroll.y)
-            }
-
-            self.camera.controller().update(glam::Vec3::new(
-                inputs.right.process() - inputs.left.process(),
-                inputs.down.process() - inputs.up.process(),
-                inputs.backwards.process() - inputs.forward.process(),
-            ));
-        }
-
-        /*if inputs.p.just_pressed() {
-            println!("camera position: {}", self.camera.controller().pos());
-        }*/
-
+    pub fn update(&mut self) {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -729,15 +703,3 @@ impl<'a> Drawer<'a> {
         Ok(())
     }
 }
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct DrawIndexedIndirect {
-    index_count: u32,
-    instance_count: u32,
-    base_index: u32,
-    vertex_offset: i32,
-    first_instance: u32,
-}
-unsafe impl bytemuck::Pod for DrawIndexedIndirect {}
-unsafe impl bytemuck::Zeroable for DrawIndexedIndirect {}

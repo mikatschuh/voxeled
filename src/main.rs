@@ -1,6 +1,6 @@
 use colored::Colorize;
 use glam::Vec3;
-use gpu::{camera::Camera, camera_controller::SmoothController};
+use gpu::camera::Camera;
 use server::Server;
 use winit::{
     dpi::PhysicalSize,
@@ -156,17 +156,35 @@ pub fn update<G: Generator>(
     *lod_level += inputs.lod_up as u16;
     *lod_level -= inputs.lod_down as u16;
 
-    drawer.update(inputs);
-    let cam_pos = drawer.camera.controller().pos();
-    let cam_dir = drawer.camera.controller().dir();
+    if drawer.window.focused() {
+        if let Some(mouse_motion) = inputs.mouse_motion {
+            drawer.camera.rotate_around_angle(glam::Vec3::new(
+                -mouse_motion.x as f32,
+                -mouse_motion.y as f32,
+                0.,
+            ));
+        }
+
+        if let Some(scroll) = inputs.mouse_wheel {
+            drawer.camera.update_acc(scroll.y)
+        }
+
+        drawer.camera.update(glam::Vec3::new(
+            inputs.right.process() - inputs.left.process(),
+            inputs.down.process() - inputs.up.process(),
+            inputs.backwards.process() - inputs.forward.process(),
+        ));
+    }
+
+    drawer.update();
 
     if *change_mesh {
         // let now = Instant::now();
         // generator.write().unwrap().vertical_area *= 1.001;
         drawer.update_mesh(server.get_mesh(
             Frustum {
-                cam_pos,
-                direction: cam_dir,
+                cam_pos: drawer.camera.pos(),
+                direction: drawer.camera.dir(),
                 fov: Camera::FOV,
                 aspect_ratio: drawer.window.aspect_ratio,
                 render_distance: RENDER_DISTANCE,
