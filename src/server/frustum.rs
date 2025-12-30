@@ -1,6 +1,6 @@
 use glam::{IVec3, Vec3};
 
-use std::vec::IntoIter;
+use std::{cmp::Reverse, collections::HashSet, time::Instant, vec::IntoIter};
 
 use crate::{server::chunks::ChunkID, FULL_DETAL_DISTANCE};
 
@@ -42,8 +42,8 @@ impl Frustum {
             self.aspect_ratio,
             self.render_distance,
         );
-        let mut chunk_ids: Vec<ChunkID> = Vec::new();
 
+        let mut candidates: Vec<ChunkID> = Vec::with_capacity(chunks.len());
         for chunk_pos in chunks {
             let lod = lod_level_at(cam_chunk_pos, chunk_pos.as_vec3());
             let lod_shift = lod as i32;
@@ -53,26 +53,41 @@ impl Frustum {
                 chunk_pos.z >> lod_shift,
             );
 
-            let candidate = ChunkID::new(lod, lod_pos);
+            candidates.push(ChunkID::new(lod, lod_pos));
+        }
+        candidates.sort_by_key(|candidate| Reverse(candidate.lod));
 
-            if chunk_ids.iter().any(|existing| {
-                chunk_overlaps(existing, candidate) && existing.lod >= candidate.lod
-            }) {
+        let mut chunk_ids_set: HashSet<ChunkID> = HashSet::with_capacity(candidates.len());
+        for candidate in candidates {
+            if chunk_ids_set.contains(&candidate) {
                 continue;
             }
 
-            chunk_ids.retain(|existing| {
-                !(chunk_overlaps(existing, candidate) && existing.lod > candidate.lod)
-            });
+            let mut ancestor = candidate;
+            let mut has_coarser = false;
+            while ancestor.lod < MAX_LOD {
+                ancestor = ancestor.parent_lod();
+                if chunk_ids_set.contains(&ancestor) {
+                    has_coarser = true;
+                    break;
+                }
+            }
 
-            chunk_ids.push(candidate);
+            if has_coarser {
+                continue;
+            }
+
+            chunk_ids_set.insert(candidate);
         }
+
+        let mut chunk_ids: Vec<ChunkID> = chunk_ids_set.into_iter().collect();
         chunk_ids.sort_by(|a, b| {
             (a.pos << a.lod)
                 .as_vec3()
-                .distance(cam_chunk_pos)
-                .total_cmp(&(b.pos << b.lod).as_vec3().distance(cam_chunk_pos))
+                .distance_squared(cam_chunk_pos)
+                .total_cmp(&(b.pos << b.lod).as_vec3().distance_squared(cam_chunk_pos))
         });
+
         chunk_ids.into_iter()
     }
 }

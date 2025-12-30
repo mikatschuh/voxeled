@@ -49,6 +49,7 @@ impl<G: Generator> Server<G> {
         let mut mesh = Mesh::with_capacity(24_000_000);
 
         let cam_chunk_pos = (frustum.cam_pos / 32.0).as_ivec3();
+
         let chunks: Vec<ChunkID> = frustum.chunk_ids().collect();
 
         chunks.iter().copied().for_each(|chunk_id| {
@@ -67,6 +68,8 @@ impl<G: Generator> Server<G> {
         });
 
         let chunks = self.select_render_chunks(&chunks);
+
+        let mut chunk_count = 0;
 
         chunks.into_iter().for_each(|chunk_id| {
             let Some(chunk_mesh) = self.level.chunk_op(chunk_id, |chunk| chunk.mesh.clone()) else {
@@ -96,7 +99,11 @@ impl<G: Generator> Server<G> {
             if cam_chunk_pos.z >= chunk_pos.z {
                 mesh.pz.append(&mut chunk_mesh.pz.clone())
             }
+
+            chunk_count += 1;
         });
+
+        println!("count: {chunk_count}");
 
         mesh
     }

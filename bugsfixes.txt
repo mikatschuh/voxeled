@@ -15,7 +15,7 @@ Cause:
 Solution:
     Enter the correct size.
 
-Only Faces that point in on direction render.
+Only Faces that point in one direction render.
 
 Cause:
     The GPU is not synchronizing properly.
@@ -47,3 +47,23 @@ Cause:
 
 Solution:
     Correct them in the shader
+
+Between LOD-Levels there were holes
+
+Cause:
+    The frustum generator was throughing away overlapping LODs in a way that created holes
+
+Solution:
+    Through away the smaller LODs, because thats way easier
+
+Faces in a certain direction are missing.
+
+Cause:
+    CPU Backface Culling exludes faces based on chunk coordinates,
+    but doesnt consider the chunk expansion
+
+Between LOD-Levels the mesh has holes
+
+Cause:
+    The larger LODs exclude faces because their same-LOD neighbors have blocks at these places,
+    though when lower LOD chunks are rendered next to them holes are created
