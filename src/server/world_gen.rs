@@ -11,7 +11,7 @@ use crate::{
 type Seed = u64;
 pub trait Generator: Clone + Send + Sync + 'static {
     fn new(seed: Seed) -> Self;
-    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D;
+    fn generate(&self, chunk_id: ChunkID) -> VoxelData3D;
     fn seed(&self) -> Seed;
 }
 
@@ -35,7 +35,7 @@ impl Generator for MountainsAndValleys {
         }
     }
 
-    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
+    fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for x in 0..32 {
             for z in 0..32 {
@@ -75,7 +75,7 @@ impl Generator for WhiteNoise {
     fn new(seed: Seed) -> Self {
         Self { seed }
     }
-    fn gen(&self, _chunk_id: ChunkID) -> VoxelData3D {
+    fn generate(&self, _chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for plane in voxels.iter_mut() {
             for row in plane.iter_mut() {
@@ -112,7 +112,7 @@ impl Generator for RainDrops {
             number_of_octaves: 1,
         }
     }
-    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
+    fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {
@@ -171,7 +171,7 @@ impl Generator for OpenCaves {
         }
     }
 
-    fn gen(&self, chunk_id: ChunkID) -> VoxelData3D {
+    fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for (x, plane) in voxels.iter_mut().enumerate() {
             for (y, row) in plane.iter_mut().enumerate() {

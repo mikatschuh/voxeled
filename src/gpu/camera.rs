@@ -1,3 +1,5 @@
+use std::f32;
+
 use glam::{Mat4, Quat, Vec3};
 
 use crate::time::DeltaTime;
@@ -10,8 +12,9 @@ pub struct Camera {
 
     acc: f32,
 
-    vel: Vec3,
     pos: Vec3,
+    prev_pos: Vec3,
+    pending_acc: Vec3,
 
     rot: Quat,
     angle: Vec3,
@@ -21,7 +24,7 @@ pub struct Camera {
 
 impl Camera {
     const FRICTION: f32 = 4.0;
-    const STANDART_ACC: f32 = 400.0;
+    const STANDART_ACC: f32 = 1000.0;
     const MAX_SPEED: f32 = 100.0;
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
     const SENSITIVITY: f32 = 0.001;
@@ -42,9 +45,10 @@ impl Camera {
 
         Self {
             pos,
+            prev_pos: pos,
+            pending_acc: Vec3::ZERO,
             rot,
             angle: Vec3::from(rot.to_euler(glam::EulerRot::YXZ)),
-            vel: Vec3::ZERO,
             acc: Self::STANDART_ACC,
             free_cam,
             delta_time,
@@ -69,20 +73,32 @@ impl Camera {
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
     pub fn add_input(&mut self, input_vector: Vec3) {
         let acc_vector = self.rot * (self.acc * input_vector);
-        self.vel += acc_vector;
+        self.pending_acc += acc_vector;
     }
 
     pub fn add_acc(&mut self, acc: Vec3) {
-        self.vel += acc * self.delta_time();
+        self.pending_acc += acc;
     }
 
-    pub fn apply_friction(&mut self) {
-        self.vel *= (-Self::FRICTION * self.delta_time()).exp();
+    pub fn apply_impulse(&mut self, delta_velocity: Vec3) {
+        let dt = self.delta_time();
+        self.prev_pos -= delta_velocity * dt;
     }
 
-    /// Takes a function which takes the current and the next position and returns the next velocity and position
-    pub fn advance_pos(&mut self, mut f: impl FnMut(Vec3, Vec3) -> (Vec3, Vec3)) {
-        (self.vel, self.pos) = f(self.pos, self.pos + self.vel * self.delta_time.get());
+    /// Takes a function which takes the current and the next position and returns the resolved position.
+    pub fn advance_pos(&mut self, mut f: impl FnMut(Vec3, Vec3) -> Vec3) {
+        let dt = self.delta_time();
+        let damping = (-Self::FRICTION * dt).exp();
+        let vel = (self.pos - self.prev_pos) * damping;
+        let acc = self.pending_acc;
+        self.pending_acc = Vec3::ZERO;
+
+        let start_pos = self.pos;
+        let intended_pos = self.pos + vel + acc * dt * dt;
+        let next_pos = f(start_pos, intended_pos);
+
+        self.prev_pos = start_pos;
+        self.pos = next_pos;
     }
 
     pub fn update_acc(&mut self, change: f32) {
@@ -93,10 +109,7 @@ impl Camera {
             } else {
                 1.0 / change.abs()
             })
-        .clamp(
-            Self::STANDART_ACC / Self::MAX_SPEED,
-            Self::STANDART_ACC * Self::MAX_SPEED,
-        );
+        .clamp(Self::STANDART_ACC / Self::MAX_SPEED, f32::MAX);
     }
 
     pub fn toggle_free_cam(&mut self) {
@@ -117,14 +130,7 @@ impl Camera {
 
     pub fn set_pos(&mut self, pos: Vec3) {
         self.pos = pos;
-    }
-
-    pub fn vel(&self) -> Vec3 {
-        self.vel
-    }
-
-    pub fn set_vel(&mut self, vel: Vec3) {
-        self.vel = vel;
+        self.prev_pos = pos;
     }
 
     pub fn rot(&self) -> Quat {

@@ -70,7 +70,7 @@ impl<G: Generator> Job<G> {
             thread::current().name().unwrap(),
         );
 
-        let voxel = generator.read().unwrap().gen(chunk_id);
+        let voxel = generator.read().unwrap().generate(chunk_id);
 
         level.chunk_op(chunk_id, |chunk| chunk.write_voxel(voxel))
     }
@@ -124,7 +124,7 @@ impl<G: Generator> Job<G> {
 
         debug_log.push(format!("L{} {}", chunk_id.lod, chunk_id.pos));
 
-        let voxel = generator.read().unwrap().gen(chunk_id);
+        let voxel = generator.read().unwrap().generate(chunk_id);
 
         level.chunk_op(chunk_id, |chunk| chunk.write_voxel(voxel))?;
 

@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use colored::Colorize;
 use glam::Vec3;
 use gpu::camera::Camera;
@@ -134,7 +136,7 @@ fn main() {
 }
 
 const FULL_DETAL_DISTANCE: f32 = 5.;
-const RENDER_DISTANCE: f32 = 48.;
+const RENDER_DISTANCE: f32 = 64.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
@@ -199,33 +201,22 @@ pub fn update<G: Generator>(
         };
         camera.add_input(input_vector);
         if !free_cam {
-            let mut vel = camera.vel();
-            vel.y += GRAVITY * camera.delta_time();
+            camera.add_acc(Vec3::new(0.0, GRAVITY, 0.0));
             if inputs.space.just_pressed() && on_ground {
-                vel.y -= WALK_JUMP_SPEED;
+                camera.apply_impulse(Vec3::new(0.0, -WALK_JUMP_SPEED, 0.0));
             }
-            camera.set_vel(vel)
-        };
-
-        camera.apply_friction();
+        }
 
         camera.advance_pos(|start_pos, intended_pos| {
-            let delta = intended_pos - start_pos;
+            let delta = dbg!(intended_pos - start_pos);
 
             let sweep = collision::move_player_with_sweep(server, start_pos, delta);
-            let vel = if sweep.hit {
-                let vel = delta;
-                let adjusted_vel = vel - sweep.normal * vel.dot(sweep.normal);
-                adjusted_vel
-            } else {
-                Vec3::ZERO
-            };
-            (vel, sweep.position)
+            sweep.position
         });
 
-        if inputs.status {
-            println!("FPS: {} pos: {},", 1. / camera.delta_time(), camera.pos())
-        }
+        // if inputs.status {
+        println!("FPS: {} pos: {},", 1. / camera.delta_time(), camera.pos())
+        //}
     });
 
     if *change_mesh {
