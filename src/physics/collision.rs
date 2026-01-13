@@ -23,18 +23,8 @@ pub struct AABB {
 
 impl AABB {
     /// Computes final position
-    fn move_through_voxel(mut self, voxel: &impl Voxel, mut delta: Vec3) -> Vec3 {
-        let mut start_corner = IVec3::new();
-        (self.pos - self.half_extends).floor().as_ivec3();
-        let mut end_corner = (self.pos + self.half_extends).floor().as_ivec3();
-
-        while delta != Vec3::ZERO {
-            if delta.x > 0. {
-                voxel.check_volume_for_collision(IVec3::new(), end_corner)
-            }
-        }
-
-        end_pos
+    fn compute_sweep(mut self, voxel: &impl Voxel, mut delta: Vec3) -> Vec3 {
+        todo!()
     }
 
     fn collides_with_voxel(&self, voxel: &impl Voxel) -> bool {

@@ -1,5 +1,5 @@
 mod cam_controller;
-// mod collision;
+mod collision;
 mod time;
 mod verlet;
 
