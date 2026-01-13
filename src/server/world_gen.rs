@@ -21,6 +21,8 @@ pub struct MountainsAndValleys {
     pub noise: Noise,
     pub horizontal_area: f64,
     pub vertical_area: f64,
+    pub ground_level: f64,
+
     pub number_of_octaves: usize,
 }
 
@@ -31,6 +33,7 @@ impl Generator for MountainsAndValleys {
             noise: Noise::new(seed as u32),
             horizontal_area: 20.0,
             vertical_area: 1200.0,
+            ground_level: 0.,
             number_of_octaves: 3,
         }
     }
@@ -50,7 +53,7 @@ impl Generator for MountainsAndValleys {
                 assert!(height >= 0.0);
                 for y in 0..32 {
                     voxels[x][y][z] = if y as i32 + chunk_id.pos.y * 32 << chunk_id.lod
-                        < (2.0.pow(height) * self.vertical_area) as i32
+                        < ((2.0.pow(height) * self.vertical_area) - self.ground_level) as i32
                     {
                         VoxelType::random_weighted()
                     } else {

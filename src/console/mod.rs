@@ -5,7 +5,7 @@ use std::{io, str::Chars, thread};
 
 use crate::{
     console::error::{CommandError, NumberParsingError},
-    time::DeltaTime,
+    physics::DeltaTime,
 };
 mod error;
 
@@ -40,7 +40,7 @@ impl Console {
                                         use CommandType::*;
                                         match command_type {
                                             Status => {
-                                                let fps = 1.0 / delta_time.get();
+                                                let fps = 1.0 / delta_time.get_f32();
                                                 let msg = format!("FPS: {}", fps);
                                                 let msg = if fps < 10.0 {
                                                     msg.red()

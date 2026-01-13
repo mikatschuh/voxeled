@@ -1,11 +1,13 @@
 struct CameraUniform {
     view_proj: mat4x4<f32>,
 };
-@group(1) @binding(0)
-var<uniform> camera: CameraUniform;
 
-@group(2) @binding(0)
-var<uniform> orientation: u32;
+@group(0) @binding(0) var tex_array: texture_2d_array<f32>;
+@group(0) @binding(1) var smp: sampler;
+
+@group(1) @binding(0) var<uniform> camera: CameraUniform;
+
+@group(2) @binding(0) var<uniform> orientation: u32;
 
 struct VertexInput {
     @location(0) kind: u32
@@ -23,8 +25,7 @@ struct VertexOutput {
     @location(3) lod_level: u32,
 }
 
-@vertex
-fn vs_main(
+@vertex fn vs_main(
     model: VertexInput,
     instance: InstanceInput,
 ) -> VertexOutput {
@@ -114,13 +115,8 @@ fn vs_main(
     );
     return out;
 }
-@group(0) @binding(0)
-var tex_array: texture_2d_array<f32>;
-@group(0) @binding(1)
-var smp: sampler;
 
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = textureSample(tex_array, smp, in.tex_coords, in.texture_index);
 
     if color.a == 0.0 {

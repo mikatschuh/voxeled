@@ -1,21 +1,27 @@
-pub mod camera;
-pub mod instance;
-// pub mod exotic_cameras;
-mod buffer_pool;
-pub mod mesh;
-mod shader;
-mod texture;
-pub mod texture_set;
-pub mod window;
-
-use camera::Camera;
+use glam::Vec3;
 use instance::Instance;
 use mesh::*;
 use texture::Texture;
 use wgpu::util::DeviceExt;
-use winit::event_loop::EventLoopWindowTarget;
+use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
-use crate::gpu::buffer_pool::BufferPool;
+use crate::{
+    FAR_PLANE, FOV, NEAR_PLANE,
+    gpu::{
+        buffer_pool::BufferPool,
+        projection::{Projection, View},
+    },
+};
+
+pub mod instance;
+// pub mod exotic_cameras;
+mod buffer_pool;
+pub mod mesh;
+pub mod projection;
+mod shader;
+mod texture;
+pub mod texture_set;
+pub mod window;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
 pub struct Drawer<'a> {
@@ -46,8 +52,9 @@ pub struct Drawer<'a> {
     render_pipeline: wgpu::RenderPipeline,
     post_processing_pipeline: wgpu::RenderPipeline,
 
-    pub camera: &'a mut Camera,
-    camera_buffer: wgpu::Buffer,
+    // camera
+    proj: Projection,
+    view_proj_buffer: wgpu::Buffer,
     orientation_buffers: [wgpu::Buffer; 6],
 
     // Asset things:
@@ -66,8 +73,10 @@ impl<'a> Drawer<'a> {
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-        camera: &'a mut Camera,
+        starting_pos: Vec3,
     ) -> Drawer<'a> {
+        let PhysicalSize { width, height } = window.inner_size();
+
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -83,18 +92,12 @@ impl<'a> Drawer<'a> {
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
+                power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
             .await
             .unwrap();
-        let adapter_features = adapter.features();
-
-        assert!(
-            adapter_features.contains(required_features),
-            "Push constants nicht unterstützt auf diesem Gerät!"
-        );
 
         let device_descriptor = wgpu::DeviceDescriptor {
             required_features: required_features,
@@ -157,11 +160,18 @@ impl<'a> Drawer<'a> {
                 label: Some("texture_bind_group_layout"),
             });
 
+        let proj = Projection::new(
+            width,
+            height,
+            FOV,
+            NEAR_PLANE,
+            FAR_PLANE,
+            View::new(starting_pos, Vec3::X),
+        );
+
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(
-                &camera.view_proj(size.width as f32 / size.height as f32),
-            ),
+            contents: bytemuck::cast_slice(&proj.calc_matrix()),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -307,6 +317,8 @@ impl<'a> Drawer<'a> {
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
+            proj,
+
             max_instances,
             diffuse_bind_group: {
                 let texture = Texture::from_images(
@@ -487,8 +499,7 @@ impl<'a> Drawer<'a> {
             orientation_bind_group_layout,
             device,
             config,
-            camera,
-            camera_buffer,
+            view_proj_buffer: camera_buffer,
             orientation_buffers,
             vertex_buffer,
             index_buffer,
@@ -501,8 +512,18 @@ impl<'a> Drawer<'a> {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.window.resize(new_size);
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
+
+            let PhysicalSize { width, height } = new_size;
+
+            self.config.width = width;
+            self.config.height = height;
+
+            self.proj.resize(width, height);
+            self.queue.write_buffer(
+                &self.view_proj_buffer,
+                0,
+                bytemuck::cast_slice(&self.proj.calc_matrix()),
+            );
 
             self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config);
             self.depth_texture_bind_group =
@@ -550,15 +571,14 @@ impl<'a> Drawer<'a> {
     }
 
     /// Eine Funktion um den Status Quo zu verändern.
-    pub fn update_cam(&mut self, mut f: impl FnMut(&mut Camera)) {
-        if self.window.focused() {
-            f(self.camera);
-            self.queue.write_buffer(
-                &self.camera_buffer,
-                0,
-                bytemuck::cast_slice(&self.camera.view_proj(self.window.aspect_ratio)),
-            );
-        }
+    pub fn update_view(&mut self, view: View) {
+        self.proj.update_view(view);
+
+        self.queue.write_buffer(
+            &self.view_proj_buffer,
+            0,
+            bytemuck::cast_slice(&self.proj.calc_matrix()),
+        );
     }
 
     pub fn update_mesh(&mut self, mesh: Mesh) {

@@ -6,6 +6,7 @@ pub struct DeltaTimeMeter {
     last_update: Instant,
     current: DeltaTime,
 }
+
 impl DeltaTimeMeter {
     /// Creates a new delta-time instance.
     /// The instance will
@@ -15,6 +16,7 @@ impl DeltaTimeMeter {
             current: DeltaTime(Arc::new(AtomicCell::new(0))),
         }
     }
+
     /// Logs a new delta-time.
     pub fn update(&mut self) {
         self.current
@@ -22,24 +24,30 @@ impl DeltaTimeMeter {
             .store(self.last_update.elapsed().as_nanos() as u64);
         self.last_update = Instant::now()
     }
+
     /// Creates a new delta-time-reader which is able to read out and obtain the current delta-time.
     pub fn reader(&self) -> DeltaTime {
         self.current.clone()
     }
 }
+
 #[derive(Clone)]
 pub struct DeltaTime(Arc<AtomicCell<u64>>);
-pub type S = f32;
 
 impl DeltaTime {
-    /// returns the delta-time in milliseconds
-    pub fn get(&self) -> S {
+    /// returns the delta-time in seconds
+    pub fn get_f32(&self) -> f32 {
         self.0.load() as f32 / 1000_000_000.0
     }
+
+    pub fn get_f64(&self) -> f64 {
+        self.0.load() as f64 / 1000_000_000.0
+    }
 }
+
 use std::fmt;
 impl fmt::Debug for DeltaTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.get())
+        write!(f, "{}", self.get_f32())
     }
 }

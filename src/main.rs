@@ -1,8 +1,5 @@
-use std::time::Instant;
-
 use colored::Colorize;
 use glam::Vec3;
-use gpu::camera::Camera;
 use server::Server;
 use winit::{
     dpi::PhysicalSize,
@@ -13,23 +10,24 @@ use winit::{
 
 use crate::{
     input::Inputs,
+    physics::{CamController, DeltaTimeMeter},
     server::{frustum::Frustum, world_gen::Generator},
 };
 
-mod collision;
-mod console;
-mod gpu;
-mod input;
-// mod old_input;
+// mod collision;
+// mod console;
 #[allow(dead_code)]
 mod data_structures;
+mod gpu;
+mod input;
 mod netcode;
+#[allow(unused)]
+mod physics;
 #[allow(unused)]
 mod playground;
 mod random;
 mod server;
 mod threadpool;
-mod time;
 
 fn main() {
     env_logger::init(); // this logs error messages
@@ -43,23 +41,19 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut delta_time = time::DeltaTimeMeter::new();
-    let mut camera = gpu::camera::Camera::new(
-        Vec3::new(0.0, -50.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        true,
-        delta_time.reader(),
-    );
+    let mut delta_time = DeltaTimeMeter::new();
 
+    let mut camera = CamController::new(STARTING_POS, 0., 0., true, delta_time.reader());
     let mut drawer = pollster::block_on(gpu::Drawer::connect_to(
         &window,
-        wgpu::PresentMode::Fifo,
-        &mut camera,
+        wgpu::PresentMode::AutoNoVsync,
+        camera.pos(),
     )); // this connectes a drawer to the window
+    /*
     let Ok(_) = console::Console::init(delta_time.reader()) else {
         println!("{}", "# failed to launch console".red());
         return;
-    };
+    };*/
 
     let mut threadpool = threadpool::Threadpool::new(num_cpus::get() - 1);
 
@@ -97,14 +91,13 @@ fn main() {
                                 drawer.resize(physical_size);
                             }
                             WindowEvent::RedrawRequested => {
-                                delta_time.update();
-
                                 let inputs = input_event_filter.get();
 
                                 if frame_number == 0 {
                                     drawer.draw(control_flow)
                                 } else {
                                     update(
+                                        &mut camera,
                                         &mut change_mesh,
                                         inputs,
                                         &mut drawer,
@@ -121,7 +114,8 @@ fn main() {
 
                                 input_event_filter.frame_done();
                                 drawer.window.request_redraw(); // This tells winit that we want another frame after this one
-                                frame_number += 1
+                                frame_number += 1;
+                                delta_time.update();
                             }
                             _ => {}
                         }
@@ -135,13 +129,20 @@ fn main() {
     threadpool.drop()
 }
 
-const FULL_DETAL_DISTANCE: f32 = 5.;
-const RENDER_DISTANCE: f32 = 64.;
+const STARTING_POS: Vec3 = Vec3::new(0., -50., 0.);
+
+const FULL_DETAL_DISTANCE: f32 = 6.;
+const RENDER_DISTANCE: f32 = 96.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
+pub const FOV: f32 = std::f32::consts::FRAC_PI_2;
+pub const NEAR_PLANE: f32 = 0.1;
+pub const FAR_PLANE: f32 = 10_000.0;
+
 #[inline]
 pub fn update<G: Generator>(
+    camera: &mut CamController,
     change_mesh: &mut bool,
     inputs: &mut Inputs,
     drawer: &mut gpu::Drawer<'_>,
@@ -155,31 +156,27 @@ pub fn update<G: Generator>(
         *change_mesh = !*change_mesh;
     }
 
-    drawer.update_cam(|camera| {
+    if drawer.window.focused() {
         if inputs.free_cam {
             camera.toggle_free_cam();
         }
 
         if let Some(mouse_motion) = inputs.mouse_motion {
-            camera.rotate_around_angle(glam::Vec3::new(
-                -mouse_motion.x as f32,
-                mouse_motion.y as f32,
-                0.,
-            ));
+            camera.rotate_around_angle(mouse_motion.x as f32, -mouse_motion.y as f32);
         }
 
         if let Some(scroll) = inputs.mouse_wheel {
-            camera.update_acc(scroll.y)
+            camera.update_speed(scroll.y)
         }
 
         let free_cam = camera.free_cam();
-        let on_ground = !free_cam && collision::is_on_ground(server, camera.pos());
+        let on_ground = false; // !free_cam && collision::is_on_ground(server, camera.pos());
 
         let input_vector = if free_cam {
             glam::Vec3::new(
+                inputs.forward.process_f32() - inputs.backwards.process_f32(),
+                inputs.up.process_f32() - inputs.down.process_f32(),
                 inputs.right.process_f32() - inputs.left.process_f32(),
-                inputs.down.process_f32() - inputs.up.process_f32(),
-                inputs.backwards.process_f32() - inputs.forward.process_f32(),
             )
         } else if on_ground {
             _ = inputs.up.process_f32();
@@ -203,30 +200,30 @@ pub fn update<G: Generator>(
         if !free_cam {
             camera.add_acc(Vec3::new(0.0, GRAVITY, 0.0));
             if inputs.space.just_pressed() && on_ground {
-                camera.apply_impulse(Vec3::new(0.0, -WALK_JUMP_SPEED, 0.0));
+                camera.add_acc(Vec3::new(0.0, -WALK_JUMP_SPEED, 0.0));
             }
         }
 
         camera.advance_pos(|start_pos, intended_pos| {
-            let delta = dbg!(intended_pos - start_pos);
-
-            let sweep = collision::move_player_with_sweep(server, start_pos, delta);
-            sweep.position
+            // let sweep = collision::player_voxel_collision(server, start_pos, intended_pos);
+            intended_pos
         });
 
         // if inputs.status {
-        println!("FPS: {} pos: {},", 1. / camera.delta_time(), camera.pos())
+        println!("FPS: {}\tpos: {},", 1. / camera.delta_time(), camera.pos());
         //}
-    });
+
+        drawer.update_view(camera.view());
+    }
 
     if *change_mesh {
         // let now = Instant::now();
         // generator.write().unwrap().vertical_area *= 1.001;
         drawer.update_mesh(server.get_mesh(
             Frustum {
-                cam_pos: drawer.camera.pos(),
-                direction: drawer.camera.dir(),
-                fov: Camera::FOV,
+                cam_pos: camera.pos(),
+                direction: camera.dir(),
+                fov: FOV,
                 aspect_ratio: drawer.window.aspect_ratio,
                 render_distance: RENDER_DISTANCE,
             },
