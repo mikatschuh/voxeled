@@ -13,7 +13,7 @@ pub trait Voxel {
     }
 }
 
-pub const PLAYER_HALF_EXTENTS: Vec3 = Vec3::new(0.3, 0.9, 0.3);
+const PLAYER_HALF_EXTENTS: Vec3 = Vec3::new(0.3, 0.9, 0.3);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AABB {
@@ -22,14 +22,27 @@ pub struct AABB {
 }
 
 impl AABB {
+    pub fn player(pos: Vec3) -> Self {
+        Self {
+            pos,
+            half_extends: PLAYER_HALF_EXTENTS,
+        }
+    }
+
     /// Computes final position
-    fn compute_sweep(mut self, voxel: &impl Voxel, mut delta: Vec3) -> Vec3 {
+    pub fn compute_sweep(mut self, voxel: &impl Voxel, mut delta: Vec3) -> Vec3 {
         todo!()
     }
 
+    fn corners(&self) -> (IVec3, IVec3) {
+        (
+            (self.pos - self.half_extends).floor().as_ivec3(),
+            (self.pos + self.half_extends).floor().as_ivec3(),
+        )
+    }
+
     fn collides_with_voxel(&self, voxel: &impl Voxel) -> bool {
-        let start_corner = (self.pos - self.half_extends).floor().as_ivec3();
-        let end_corner = (self.pos + self.half_extends).floor().as_ivec3();
+        let (start_corner, end_corner) = self.corners();
 
         (start_corner.x..end_corner.x)
             .flat_map(move |x| {
