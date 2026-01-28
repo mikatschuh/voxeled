@@ -3,7 +3,7 @@ use glam::{IVec3, Vec3};
 pub trait Voxel {
     fn solid_at(&self, pos: IVec3) -> bool;
 
-    fn check_volume_for_collision(&self, start_corner: IVec3, end_corner: IVec3) -> bool {
+    fn check_volume_for_collision(&self, (start_corner, end_corner): (IVec3, IVec3)) -> bool {
         (start_corner.x..end_corner.x)
             .flat_map(move |x| {
                 (start_corner.y..end_corner.y)
@@ -39,16 +39,5 @@ impl AABB {
             (self.pos - self.half_extends).floor().as_ivec3(),
             (self.pos + self.half_extends).floor().as_ivec3(),
         )
-    }
-
-    fn collides_with_voxel(&self, voxel: &impl Voxel) -> bool {
-        let (start_corner, end_corner) = self.corners();
-
-        (start_corner.x..end_corner.x)
-            .flat_map(move |x| {
-                (start_corner.y..end_corner.y)
-                    .flat_map(move |y| (start_corner.z..end_corner.z).map(move |z| (x, y, z)))
-            })
-            .any(|(x, y, z)| voxel.solid_at(IVec3::new(x, y, z)))
     }
 }

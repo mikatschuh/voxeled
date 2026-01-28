@@ -2,7 +2,7 @@ use glam::{IVec3, Vec3};
 
 use std::{cmp::Reverse, collections::HashSet, time::Instant, vec::IntoIter};
 
-use crate::{server::chunks::ChunkID, FULL_DETAL_DISTANCE};
+use crate::{FULL_DETAL_DISTANCE, server::chunks::ChunkID};
 
 pub type LodLevel = u16;
 

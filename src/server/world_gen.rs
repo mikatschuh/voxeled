@@ -10,7 +10,6 @@ use crate::{
 
 type Seed = u64;
 pub trait Generator: Clone + Send + Sync + 'static {
-    fn new(seed: Seed) -> Self;
     fn generate(&self, chunk_id: ChunkID) -> VoxelData3D;
     fn seed(&self) -> Seed;
 }
@@ -26,8 +25,8 @@ pub struct MountainsAndValleys {
     pub number_of_octaves: usize,
 }
 
-impl Generator for MountainsAndValleys {
-    fn new(seed: Seed) -> Self {
+impl MountainsAndValleys {
+    pub fn new(seed: Seed) -> Self {
         Self {
             seed,
             noise: Noise::new(seed as u32),
@@ -37,7 +36,9 @@ impl Generator for MountainsAndValleys {
             number_of_octaves: 3,
         }
     }
+}
 
+impl Generator for MountainsAndValleys {
     fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for x in 0..32 {
@@ -74,10 +75,13 @@ pub struct WhiteNoise {
     pub seed: Seed,
 }
 
-impl Generator for WhiteNoise {
-    fn new(seed: Seed) -> Self {
+impl WhiteNoise {
+    pub fn new(seed: Seed) -> Self {
         Self { seed }
     }
+}
+
+impl Generator for WhiteNoise {
     fn generate(&self, _chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for plane in voxels.iter_mut() {
@@ -104,7 +108,7 @@ pub struct RainDrops {
     pub number_of_octaves: usize,
 }
 
-impl Generator for RainDrops {
+impl RainDrops {
     fn new(seed: Seed) -> Self {
         Self {
             seed,
@@ -115,6 +119,9 @@ impl Generator for RainDrops {
             number_of_octaves: 1,
         }
     }
+}
+
+impl Generator for RainDrops {
     fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for (x, plane) in voxels.iter_mut().enumerate() {
@@ -143,6 +150,38 @@ impl Generator for RainDrops {
 }
 
 #[derive(Clone)]
+struct MaterialGenerator {
+    pub noise: Noise,
+    pub scale: f64,
+    pub threshold: f64,
+    pub octaves: usize,
+}
+
+impl MaterialGenerator {
+    pub fn new(seed: Seed) -> Self {
+        Self {
+            noise: Noise::new(seed as u32 ^ 0b11010101010101010100011010101010),
+            scale: 8.0,
+            threshold: 0.6,
+            octaves: 3,
+        }
+    }
+}
+
+impl MaterialGenerator {
+    fn generate(&self, pos: (f64, f64, f64)) -> VoxelType {
+        let mat = self
+            .noise
+            .get_octaves(pos.0, pos.1, pos.2, self.scale, self.octaves);
+
+        match mat {
+            _ if mat >= self.threshold => VoxelType::CrackedStone,
+            _ => VoxelType::Stone,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct OpenCaves {
     pub seed: Seed,
     pub noise: Noise,
@@ -151,14 +190,11 @@ pub struct OpenCaves {
     pub threshold: f64,
     pub number_of_octaves: usize,
 
-    pub material_noise: Noise,
-    pub material_scale: f64,
-    pub material_threshold: f64,
-    pub material_octaves: usize,
+    material_generator: MaterialGenerator,
 }
 
-impl Generator for OpenCaves {
-    fn new(seed: Seed) -> Self {
+impl OpenCaves {
+    pub fn new(seed: Seed) -> Self {
         Self {
             seed,
             noise: Noise::new(seed as u32),
@@ -167,13 +203,14 @@ impl Generator for OpenCaves {
             threshold: 0.5,
             number_of_octaves: 9,
 
-            material_noise: Noise::new(seed as u32 ^ 0b11010101010101010100011010101010),
-            material_scale: 8.0,
-            material_threshold: 0.6,
-            material_octaves: 3,
+            material_generator: MaterialGenerator::new(
+                seed ^ 0b1101010101010101010001101010101011010101010101010100011010101010,
+            ),
         }
     }
+}
 
+impl Generator for OpenCaves {
     fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
         for (x, plane) in voxels.iter_mut().enumerate() {
@@ -196,24 +233,66 @@ impl Generator for OpenCaves {
                     *voxel = if val.pow(self.exponent) <= self.threshold {
                         VoxelType::Air
                     } else {
-                        let mat = self.material_noise.get_octaves(
-                            pos.0,
-                            pos.1,
-                            pos.2,
-                            self.material_scale,
-                            self.material_octaves,
-                        );
-
-                        match mat {
-                            _ if mat >= self.material_threshold => VoxelType::CrackedStone,
-                            _ => VoxelType::Stone,
-                        }
+                        self.material_generator.generate(pos)
                     }
                 }
             }
         }
         voxels
     }
+    fn seed(&self) -> Seed {
+        self.seed
+    }
+}
+
+#[derive(Clone)]
+pub struct Box {
+    pub seed: Seed,
+    pub size: f64,
+
+    material_generator: MaterialGenerator,
+}
+
+impl Box {
+    pub fn new(seed: Seed, size: f64) -> Self {
+        Self {
+            seed,
+            size,
+            material_generator: MaterialGenerator::new(seed),
+        }
+    }
+}
+
+impl Generator for Box {
+    fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
+        let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
+
+        for (x, plane) in voxels.iter_mut().enumerate() {
+            for (y, row) in plane.iter_mut().enumerate() {
+                for (z, voxel) in row.iter_mut().enumerate() {
+                    let pos = (
+                        ((x as i32 + chunk_id.pos.x * 32) << chunk_id.lod) as f64,
+                        ((y as i32 + chunk_id.pos.y * 32) << chunk_id.lod) as f64,
+                        ((z as i32 + chunk_id.pos.z * 32) << chunk_id.lod) as f64,
+                    );
+
+                    *voxel = if pos.0 < self.size
+                        && pos.1 < self.size
+                        && pos.2 < self.size
+                        && pos.0 > -self.size
+                        && pos.1 > -self.size
+                        && pos.2 > -self.size
+                    {
+                        VoxelType::Air
+                    } else {
+                        self.material_generator.generate(pos)
+                    }
+                }
+            }
+        }
+        voxels
+    }
+
     fn seed(&self) -> Seed {
         self.seed
     }

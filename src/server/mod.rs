@@ -1,6 +1,7 @@
 use crate::gpu::texture_set::Texture;
+use crate::physics::Voxel;
 use crate::server::chunks::{ChunkID, Level};
-use crate::server::frustum::{Frustum, LodLevel, MAX_LOD, chunk_overlaps, cube};
+use crate::server::frustum::{Frustum, LodLevel, MAX_LOD, chunk_overlaps};
 use crate::server::job::Job;
 use crate::server::world_gen::Generator;
 use crate::{gpu::mesh::Mesh, threadpool::Threadpool};
@@ -97,33 +98,6 @@ impl<G: Generator> Server<G> {
         mesh
     }
 
-    pub fn is_solid_physically(&self, world_voxel: IVec3) -> bool {
-        let (mut chunk_pos, mut local_pos) = chunk_and_local(world_voxel);
-
-        for lod in 0..=MAX_LOD {
-            if let Some(voxel) = self
-                .level
-                .chunk_op(chunks::ChunkID::new(lod, chunk_pos), |chunk| {
-                    let guard = chunk.voxel.read();
-                    let voxel = guard.as_ref()?;
-                    let x = local_pos.x as usize;
-                    let y = local_pos.y as usize;
-                    let z = local_pos.z as usize;
-                    Some(voxel[x][y][z])
-                })
-                .flatten()
-            {
-                return voxel.is_physically_solid();
-            } else {
-                local_pos = ((chunk_pos & 1) << 4) | (local_pos >> 1);
-                chunk_pos = chunk_pos >> 1;
-                continue;
-            };
-        }
-
-        true
-    }
-
     fn select_render_chunks(&self, chunks: &[ChunkID]) -> Vec<ChunkID> {
         let mut selected: Vec<ChunkID> = Vec::new();
 
@@ -181,6 +155,35 @@ impl<G: Generator> Server<G> {
             mesh.add_nz(pos, Texture::Debug, size);
             mesh.add_pz(pos, Texture::Debug, size);
         });
+    }
+}
+
+impl<G: Generator> Voxel for Server<G> {
+    fn solid_at(&self, pos: IVec3) -> bool {
+        let (mut chunk_pos, mut local_pos) = chunk_and_local(pos);
+
+        for lod in 0..=MAX_LOD {
+            if let Some(voxel) = self
+                .level
+                .chunk_op(chunks::ChunkID::new(lod, chunk_pos), |chunk| {
+                    let guard = chunk.voxel.read();
+                    let voxel = guard.as_ref()?;
+                    let x = local_pos.x as usize;
+                    let y = local_pos.y as usize;
+                    let z = local_pos.z as usize;
+                    Some(voxel[x][y][z])
+                })
+                .flatten()
+            {
+                return voxel.is_physically_solid();
+            } else {
+                local_pos = ((chunk_pos & 1) << 4) | (local_pos >> 1);
+                chunk_pos = chunk_pos >> 1;
+                continue;
+            };
+        }
+
+        true
     }
 }
 

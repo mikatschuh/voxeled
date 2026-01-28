@@ -10,7 +10,7 @@ use winit::{
 
 use crate::{
     input::Inputs,
-    physics::{CamController, DeltaTimeMeter},
+    physics::{AABB, CamController, DeltaTimeMeter},
     server::{frustum::Frustum, world_gen::Generator},
 };
 
@@ -60,7 +60,7 @@ fn main() {
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let generator = server::world_gen::OpenCaves::new(seed);
+    let generator = server::world_gen::Box::new(seed, 5. * 32.);
     let mut server = Server::new(generator);
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
@@ -129,7 +129,7 @@ fn main() {
     threadpool.drop()
 }
 
-const STARTING_POS: Vec3 = Vec3::new(0., -50., 0.);
+const STARTING_POS: Vec3 = Vec3::new(0., 0., 0.);
 
 const FULL_DETAL_DISTANCE: f32 = 6.;
 const RENDER_DISTANCE: f32 = 96.;
@@ -205,8 +205,7 @@ pub fn update<G: Generator>(
         }
 
         camera.advance_pos(|start_pos, intended_pos| {
-            // let sweep = collision::player_voxel_collision(server, start_pos, intended_pos);
-            intended_pos
+             intended_pos // AABB::player(start_pos).compute_sweep(server, intended_pos - start_pos)
         });
 
         // if inputs.status {
