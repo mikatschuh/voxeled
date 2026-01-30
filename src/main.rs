@@ -60,8 +60,7 @@ fn main() {
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let generator = server::world_gen::Box::new(seed, 5. * 32.);
-    let mut server = Server::new(generator);
+    let mut server = Server::new(server::world_gen::Box::new(seed, 8. * 32.));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
