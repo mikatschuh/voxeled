@@ -139,7 +139,7 @@ impl<G: Generator> Server<G> {
             .is_some_and(|is_done| is_done)
     }
 
-    fn debug_chunk_display(chunks: &Vec<ChunkID>, mesh: &mut Mesh) {
+    fn debug_chunk_display(chunks: &[ChunkID], mesh: &mut Mesh) {
         chunks.iter().for_each(|chunk_id| {
             if chunk_id.lod == 0 {
                 return;

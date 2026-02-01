@@ -3,9 +3,9 @@ use glam::IVec3;
 use crate::{
     gpu::mesh::Mesh,
     server::{
-        chunks::Level,
-        voxel::{fill, VoxelData3D, VoxelType},
         ChunkID,
+        chunks::Level,
+        voxel::{VoxelData3D, VoxelType, fill},
     },
 };
 
@@ -13,7 +13,7 @@ pub type BitMap3D = [[u32; 32]; 32];
 
 fn get_data(level: &Level, chunk_id: ChunkID) -> VoxelData3D {
     level
-        .chunk_op(chunk_id, |chunk| chunk.voxel.read().clone())
+        .chunk_op(chunk_id, |chunk| *chunk.voxel.read())
         .flatten()
         .unwrap_or_else(|| fill(VoxelType::Air))
 }
@@ -114,42 +114,42 @@ pub fn map_visible(level: &Level, chunk: ChunkID) -> [BitMap3D; 6] {
 
     let (px, nx, py, ny, pz, nz) = (
         get_x_aligned_solid_map(
-            &level,
+            level,
             ChunkID {
                 lod: chunk.lod,
                 pos: chunk.pos + IVec3::new(1, 0, 0),
             },
         ),
         get_x_aligned_solid_map(
-            &level,
+            level,
             ChunkID {
                 pos: chunk.pos + IVec3::new(-1, 0, 0),
                 lod: chunk.lod,
             },
         ),
         get_y_aligned_solid_map(
-            &level,
+            level,
             ChunkID {
                 pos: chunk.pos + IVec3::new(0, 1, 0),
                 lod: chunk.lod,
             },
         ),
         get_y_aligned_solid_map(
-            &level,
+            level,
             ChunkID {
                 pos: chunk.pos + IVec3::new(0, -1, 0),
                 lod: chunk.lod,
             },
         ),
         get_z_aligned_solid_map(
-            &level,
+            level,
             ChunkID {
                 pos: chunk.pos + IVec3::new(0, 0, 1),
                 lod: chunk.lod,
             },
         ),
         get_z_aligned_solid_map(
-            &level,
+            level,
             ChunkID {
                 pos: chunk.pos + IVec3::new(0, 0, -1),
                 lod: chunk.lod,
@@ -206,7 +206,7 @@ pub fn map_visible(level: &Level, chunk: ChunkID) -> [BitMap3D; 6] {
     faces
 }
 
-const FIRST_BIT: u32 = 0b1000_0000__0000_0000__0000_0000__0000_0000;
+const FIRST_BIT: u32 = 0b1000_0000_0000_0000_0000_0000_0000_0000;
 
 pub fn generate_mesh(chunk: ChunkID, data: VoxelData3D, faces: [BitMap3D; 6]) -> Mesh {
     let chunk_pos = chunk.pos << 5;
@@ -219,7 +219,7 @@ pub fn generate_mesh(chunk: ChunkID, data: VoxelData3D, faces: [BitMap3D; 6]) ->
                 }
 
                 let position: IVec3 =
-                    chunk_pos + IVec3::new(x as i32, y as i32, z as i32) << chunk.lod;
+                    (chunk_pos + IVec3::new(x as i32, y as i32, z as i32)) << chunk.lod;
 
                 if faces[0][y][z] & (FIRST_BIT >> x) != 0 {
                     mesh.add_nx(position, data[x][y][z].texture(), chunk.lod)

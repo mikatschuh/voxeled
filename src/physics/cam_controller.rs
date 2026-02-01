@@ -39,8 +39,8 @@ impl CamController {
 
             rot,
             dir,
-            yaw: yaw,
-            pitch: pitch,
+            yaw,
+            pitch,
 
             delta_time,
         }
@@ -86,7 +86,10 @@ impl CamController {
             } else {
                 1.0 / change.abs()
             })
-        .clamp(Self::STANDART_SPEED / Self::MAX_SPEED, f32::MAX);
+        .clamp(
+            Self::STANDART_SPEED / Self::MAX_SPEED,
+            Self::STANDART_SPEED * Self::MAX_SPEED,
+        );
     }
 
     pub fn toggle_free_cam(&mut self) {

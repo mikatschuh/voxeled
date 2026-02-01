@@ -28,14 +28,14 @@ pub struct GlobalAllocator;
 
 impl CustomAllocator for GlobalAllocator {
     #[inline]
-    unsafe fn allocate(&self, layout: Layout) -> *mut u8 {
+    unsafe fn allocate(&self, layout: Layout) -> *mut u8 { unsafe {
         alloc(layout)
-    }
+    }}
 
     #[inline]
-    unsafe fn deallocate(&self, ptr: *mut u8, layout: Layout) {
+    unsafe fn deallocate(&self, ptr: *mut u8, layout: Layout) { unsafe {
         dealloc(ptr, layout)
-    }
+    }}
 }
 
 // Implementierung des Standard-Allocators
@@ -349,7 +349,7 @@ pub struct Ref<'recv, T> {
 impl<'recv, T> Clone for Ref<'recv, T> {
     fn clone(&self) -> Self {
         Self {
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
             ptr: self.ptr,
         }
     }

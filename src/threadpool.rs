@@ -64,7 +64,7 @@ impl<G: Generator> Threadpool<G> {
                     .unwrap_or(String::new())
             );
             for task in debug_log.read().iter() {
-                out += &format!("{}", task)
+                out += &task.to_string()
             }
         }
         out

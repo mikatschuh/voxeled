@@ -16,12 +16,12 @@ pub trait Voxel {
 const PLAYER_HALF_EXTENTS: Vec3 = Vec3::new(0.3, 0.9, 0.3);
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct AABB {
+pub struct Aabb {
     pos: Vec3,
     half_extends: Vec3,
 }
 
-impl AABB {
+impl Aabb {
     pub fn player(pos: Vec3) -> Self {
         Self {
             pos,

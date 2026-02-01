@@ -1,4 +1,3 @@
-use colored::Colorize;
 use glam::Vec3;
 use server::Server;
 use winit::{
@@ -10,7 +9,7 @@ use winit::{
 
 use crate::{
     input::Inputs,
-    physics::{AABB, CamController, DeltaTimeMeter},
+    physics::{CamController, DeltaTimeMeter},
     server::{frustum::Frustum, world_gen::Generator},
 };
 
@@ -60,7 +59,7 @@ fn main() {
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let mut server = Server::new(server::world_gen::Box::new(seed, 8. * 32.));
+    let mut server = Server::new(server::world_gen::MountainsAndValleys::new(seed, /*8. * 32.*/));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
@@ -203,7 +202,7 @@ pub fn update<G: Generator>(
             }
         }
 
-        camera.advance_pos(|start_pos, intended_pos| {
+        camera.advance_pos(|_start_pos, intended_pos| {
              intended_pos // AABB::player(start_pos).compute_sweep(server, intended_pos - start_pos)
         });
 

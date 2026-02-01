@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicU8, Ordering},
     },
 };
 
@@ -11,7 +11,7 @@ use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::{
     gpu::mesh::Mesh,
-    server::{meshing::BitMap3D, voxel::VoxelData3D, LodLevel},
+    server::{LodLevel, meshing::BitMap3D, voxel::VoxelData3D},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -75,9 +75,7 @@ impl Level {
     #[inline(always)]
     pub fn chunk_op<A>(&self, chunk_id: ChunkID, f: impl FnOnce(&Chunk) -> A) -> Option<A> {
         let lock = self.chunks.read();
-        let Some(chunk) = lock.get(&chunk_id) else {
-            return None;
-        };
+        let chunk = lock.get(&chunk_id)?;
         Some(f(chunk))
     }
 }

@@ -1,14 +1,9 @@
 use std::{
     array::IntoIter,
-    fs::File,
-    io::Read,
-    mem,
-    ops::{Range, Sub},
-    thread::sleep,
-    time::{Duration, Instant, UNIX_EPOCH},
+    ops::Range,
+    time::{Duration, Instant},
 };
 
-use serde::Deserialize;
 use winit::{
     dpi::PhysicalPosition,
     event::{DeviceEvent, Event, MouseScrollDelta, WindowEvent},
@@ -162,7 +157,7 @@ pub enum DownTime {
 impl DownTime {
     #[must_use]
     pub fn process(&mut self) -> f64 {
-        let secs = match self {
+        match self {
             Self::Nothing => 0.0,
             Self::Instant(instant) => {
                 let secs = instant.elapsed().as_secs_f64();
@@ -179,8 +174,7 @@ impl DownTime {
                 *self = Self::Instant(Instant::now());
                 secs
             }
-        };
-        secs
+        }
     }
 
     pub fn process_f32(&mut self) -> f32 {
@@ -281,7 +275,7 @@ impl Inputs {
     }
 }
 
-/*#[derive(Deserialize)]
+// #[derive(Deserialize)]
 pub struct KeyMap {
     pub forward: char,
     pub backwards: char,
@@ -291,10 +285,29 @@ pub struct KeyMap {
     pub down: char,
 
     touchpad_sensitivity: f32,
-}*/
+    touchpad_invert_x: bool,
+    touchpad_invert_y: bool,
+}
+
+impl KeyMap {
+    fn new() -> Self {
+        Self {
+            forward: ' ',
+            backwards: ' ',
+            left: ' ',
+            right: ' ',
+            up: ' ',
+            down: ' ',
+
+            touchpad_sensitivity: 0.01,
+            touchpad_invert_x: false,
+            touchpad_invert_y: false,
+        }
+    }
+}
 
 pub struct InputEventFilter {
-    // key_map: KeyMap,
+    pub key_map: KeyMap,
     pub inputs: Inputs,
 }
 
@@ -307,7 +320,7 @@ impl InputEventFilter {
         */
 
         Ok(InputEventFilter {
-            // key_map,
+            key_map: KeyMap::new(),
             inputs: Inputs::new(),
         })
     }
@@ -319,30 +332,48 @@ impl InputEventFilter {
         keyboard_focus: bool,
     ) -> bool {
         match event {
-            Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseMotion { delta } => {
-                    self.inputs.mouse_motion = Some(PhysicalPosition::new(
-                        self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).x + delta.0,
-                        self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).y + delta.1,
-                    ));
-                }
-                _ => return false,
-            },
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion { delta },
+                ..
+            } => {
+                self.inputs.mouse_motion = Some(PhysicalPosition::new(
+                    self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).x + delta.0,
+                    self.inputs.mouse_motion.unwrap_or(VEC64_ZERO).y + delta.1,
+                ));
+            }
             Event::WindowEvent { window_id, event } if own_window_id == *window_id => match event {
-                WindowEvent::MouseWheel { delta, .. } => match delta {
-                    MouseScrollDelta::LineDelta(x, y) => {
-                        self.inputs.mouse_wheel = Some(PhysicalPosition::new(
-                            self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).x + *x,
-                            self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y + *y,
-                        ));
-                    }
-                    MouseScrollDelta::PixelDelta(delta) => {
-                        self.inputs.mouse_wheel = Some(PhysicalPosition::new(
-                            self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).x + delta.x as f32, //* self.key_map.touchpad_sensitivity,
-                            self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y - delta.y as f32, // * self.key_map.touchpad_sensitivity,
-                        ))
-                    }
-                },
+                WindowEvent::MouseWheel {
+                    delta: MouseScrollDelta::LineDelta(x, y),
+                    ..
+                } => {
+                    self.inputs.mouse_wheel = Some(PhysicalPosition::new(
+                        self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).x + *x,
+                        self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y + *y,
+                    ))
+                }
+                WindowEvent::MouseWheel {
+                    delta: MouseScrollDelta::PixelDelta(delta),
+                    ..
+                } => {
+                    self.inputs.mouse_wheel = Some(PhysicalPosition::new(
+                        self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).x
+                            + delta.x as f32
+                                * self.key_map.touchpad_sensitivity
+                                * if self.key_map.touchpad_invert_x {
+                                    -1.
+                                } else {
+                                    1.
+                                },
+                        self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y
+                            - delta.y as f32
+                                * self.key_map.touchpad_sensitivity
+                                * if self.key_map.touchpad_invert_y {
+                                    -1.
+                                } else {
+                                    1.
+                                },
+                    ))
+                }
                 // unfocused
                 WindowEvent::Focused(focused) => {
                     if !focused {

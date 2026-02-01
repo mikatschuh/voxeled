@@ -27,10 +27,10 @@ fn collect_shader(path: PathBuf) -> String {
         let entry_path = dir_entry.path();
         if entry_path.is_dir() && entry_path.file_name() != Some(&OsString::from("target")) {
             shader_code += &collect_shader(entry_path)
-        } else if entry_path.extension() == Some(&OsString::from("wgsl")) {
-            if let Ok(file_content) = fs::read_to_string(entry_path) {
-                shader_code += &file_content
-            }
+        } else if entry_path.extension() == Some(&OsString::from("wgsl"))
+            && let Ok(file_content) = fs::read_to_string(entry_path)
+        {
+            shader_code += &file_content
         }
     }
     shader_code

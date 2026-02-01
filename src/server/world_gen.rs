@@ -41,19 +41,20 @@ impl MountainsAndValleys {
 impl Generator for MountainsAndValleys {
     fn generate(&self, chunk_id: ChunkID) -> VoxelData3D {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
-        for x in 0..32 {
-            for z in 0..32 {
+
+        for (x, plane) in voxels.iter_mut().enumerate() {
+            for (z, collum) in plane.iter_mut().enumerate() {
                 let height = self.noise.get_octaves(
-                    (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
+                    ((x as i32 + chunk_id.pos.x * 32) << chunk_id.lod) as f64,
                     0.0,
-                    (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
+                    ((z as i32 + chunk_id.pos.z * 32) << chunk_id.lod) as f64,
                     self.horizontal_area,
                     self.number_of_octaves,
                 );
                 assert!(height <= 1.0);
                 assert!(height >= 0.0);
-                for y in 0..32 {
-                    voxels[x][y][z] = if y as i32 + chunk_id.pos.y * 32 << chunk_id.lod
+                for (y, voxel) in collum.iter_mut().enumerate() {
+                    *voxel = if (y as i32 + chunk_id.pos.y * 32) << chunk_id.lod
                         < ((2.0.pow(height) * self.vertical_area) - self.ground_level) as i32
                     {
                         VoxelType::random_weighted()
@@ -128,9 +129,9 @@ impl Generator for RainDrops {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
                     let val = self.noise.get_octaves(
-                        (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
-                        (y as i32 + chunk_id.pos.y * 32 << chunk_id.lod) as f64,
-                        (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
+                        ((x as i32 + chunk_id.pos.x * 32) << chunk_id.lod) as f64,
+                        ((y as i32 + chunk_id.pos.y * 32) << chunk_id.lod) as f64,
+                        ((z as i32 + chunk_id.pos.z * 32) << chunk_id.lod) as f64,
                         self.horizontal_area,
                         self.number_of_octaves,
                     );
@@ -217,9 +218,9 @@ impl Generator for OpenCaves {
             for (y, row) in plane.iter_mut().enumerate() {
                 for (z, voxel) in row.iter_mut().enumerate() {
                     let pos = (
-                        (x as i32 + chunk_id.pos.x * 32 << chunk_id.lod) as f64,
-                        (y as i32 + chunk_id.pos.y * 32 << chunk_id.lod) as f64,
-                        (z as i32 + chunk_id.pos.z * 32 << chunk_id.lod) as f64,
+                        ((x as i32 + chunk_id.pos.x * 32) << chunk_id.lod) as f64,
+                        ((y as i32 + chunk_id.pos.y * 32) << chunk_id.lod) as f64,
+                        ((z as i32 + chunk_id.pos.z * 32) << chunk_id.lod) as f64,
                     );
 
                     let val = self.noise.get_octaves(

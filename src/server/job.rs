@@ -56,7 +56,7 @@ impl<G: Generator> Job<G> {
         level: Arc<Level>,
         chunk_id: ChunkID,
         generator: Arc<ShardedLock<G>>,
-        debug_log: &mut Vec<String>,
+        _debug_log: &mut Vec<String>,
     ) -> Option<()> {
         if level
             .insert(chunk_id, Chunk::new(DataState::Generating))
@@ -78,7 +78,7 @@ impl<G: Generator> Job<G> {
     fn generate_mesh(
         level: Arc<Level>,
         chunk_id: ChunkID,
-        debug_log: &mut Vec<String>,
+        _debug_log: &mut Vec<String>,
     ) -> Option<()> {
         if level
             .chunk_op(chunk_id, |chunk| chunk.occl_state.try_start_generating())?
@@ -103,7 +103,7 @@ impl<G: Generator> Job<G> {
             thread::current().name().unwrap(),
         );
 
-        let voxel = level.chunk_op(chunk_id, |chunk| chunk.voxel.read().clone())?;
+        let voxel = level.chunk_op(chunk_id, |chunk| *chunk.voxel.read())?;
         let mesh = voxel.map_or_else(Mesh::new, |voxel| generate_mesh(chunk_id, voxel, occl_maps));
 
         level.chunk_op(chunk_id, |chunk| chunk.write_mesh(mesh))
