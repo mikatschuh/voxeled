@@ -131,7 +131,7 @@ fn main() {
 const STARTING_POS: Vec3 = Vec3::new(0., 0., 0.);
 
 const FULL_DETAL_DISTANCE: f32 = 6.;
-const RENDER_DISTANCE: f32 = 96.;
+const RENDER_DISTANCE: f32 = 48.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 

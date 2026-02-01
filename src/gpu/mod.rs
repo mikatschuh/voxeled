@@ -100,7 +100,7 @@ impl<'a> Drawer<'a> {
             .unwrap();
 
         let device_descriptor = wgpu::DeviceDescriptor {
-            required_features: required_features,
+            required_features,
             required_limits: wgpu::Limits {
                 max_push_constant_size: 4, // mind. 4, meist 128
                 ..Default::default()
@@ -379,7 +379,7 @@ impl<'a> Drawer<'a> {
             render_pipeline: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Render Pipeline"),
                 layout: Some(
-                    &&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                         label: Some("Render Pipeline Layout"),
                         bind_group_layouts: &[
                             &texture_bind_group_layout,
@@ -683,7 +683,7 @@ impl<'a> Drawer<'a> {
                         self.instance_buffer_pool.use_buffer(
                             &self.device,
                             &self.queue,
-                            bytemuck::cast_slice(&chunk),
+                            bytemuck::cast_slice(chunk),
                         ),
                     );
 

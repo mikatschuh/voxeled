@@ -6,7 +6,6 @@ use glam::IVec3;
 ///                             LODs|                        texture|
 /// |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|
 /// ```
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Instance {
