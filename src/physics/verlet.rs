@@ -5,31 +5,23 @@ pub struct TCBody {
     prev_time: f32,
 
     pos: Vec3,
-
-    pending_impuls: Vec3,
 }
 
 impl TCBody {
     pub fn new(pos: Vec3) -> Self {
         Self {
             prev_pos: pos,
-            prev_time: f32::MIN,
+            prev_time: 0.1666,
             pos,
-            pending_impuls: Vec3::ZERO,
         }
     }
 
-    pub fn add_impuls(&mut self, acc: Vec3) {
-        self.pending_impuls += acc
-    }
-
     pub fn step(&mut self, time: f32, damping_coef: f32) {
-        let vel = (self.pos - self.prev_pos) * (time / self.prev_time);
+        let ds = (self.pos - self.prev_pos) / self.prev_time * time; // v = ds/dt; v * dt = ds
 
         self.prev_pos = self.pos;
         self.prev_time = time;
-        self.pos += (vel + self.pending_impuls * time) * (-damping_coef * time).exp();
-        self.pending_impuls = Vec3::ZERO;
+        self.pos += ds * (-damping_coef * time).exp();
     }
 
     pub fn constrain(&mut self, mut constrain: impl FnMut(Vec3, Vec3) -> Vec3) {

@@ -1,9 +1,9 @@
 use std::{
-    array::IntoIter,
     ops::Range,
     time::{Duration, Instant},
 };
 
+use glam::Vec3;
 use winit::{
     dpi::PhysicalPosition,
     event::{DeviceEvent, Event, MouseScrollDelta, WindowEvent},
@@ -143,83 +143,17 @@ impl InputState {
     }
 }
 
-#[derive(Clone, Copy, Default, Debug)]
-pub enum DownTime {
-    #[default]
-    Nothing,
-    Instant(Instant),
-    Duration(Duration),
-    DurationAndInstant {
-        duration: Duration,
-        instant: Instant,
-    },
-}
-
-impl DownTime {
-    #[must_use]
-    pub fn process(&mut self) -> f64 {
-        match self {
-            Self::Nothing => 0.0,
-            Self::Instant(instant) => {
-                let secs = instant.elapsed().as_secs_f64();
-                *instant = Instant::now();
-                secs
-            }
-            Self::Duration(duration) => {
-                let secs = duration.as_secs_f64();
-                *self = Self::Nothing;
-                secs
-            }
-            Self::DurationAndInstant { duration, instant } => {
-                let secs = duration.as_secs_f64() + instant.elapsed().as_secs_f64();
-                *self = Self::Instant(Instant::now());
-                secs
-            }
-        }
-    }
-
-    pub fn process_f32(&mut self) -> f32 {
-        self.process() as f32
-    }
-
-    fn press(&mut self) {
-        match self {
-            Self::Nothing => *self = Self::Instant(Instant::now()),
-            Self::Instant(..) => {}
-            Self::Duration(duration) => {
-                *self = Self::DurationAndInstant {
-                    duration: *duration,
-                    instant: Instant::now(),
-                }
-            }
-            Self::DurationAndInstant { .. } => {}
-        }
-    }
-
-    fn release(&mut self) {
-        match self {
-            Self::Nothing => {}
-            Self::Instant(instant) => *self = Self::Duration(instant.elapsed()),
-            Self::Duration(..) => {}
-            Self::DurationAndInstant {
-                duration: dur,
-                instant,
-            } => *self = Self::Duration(*dur + instant.elapsed()),
-        }
-    }
-}
-
 const VEC32_ZERO: PhysicalPosition<f32> = PhysicalPosition::new(0., 0.);
 const VEC64_ZERO: PhysicalPosition<f64> = PhysicalPosition::new(0., 0.);
 
 #[derive(Clone, Debug)]
 pub struct Inputs {
-    pub forward: DownTime,
-    pub backwards: DownTime,
-    pub left: DownTime,
-    pub right: DownTime,
-    pub up: DownTime,
-    pub down: DownTime,
+    pub forward: bool,
+    pub backwards: bool,
+    pub left: bool,
+    pub right: bool,
+    pub up: bool,
+    pub down: bool,
 
     pub mouse_motion: Option<PhysicalPosition<f64>>,
     pub mouse_wheel: Option<PhysicalPosition<f32>>,
@@ -240,12 +174,12 @@ pub const DOUBLE_CLICK_TIMESPAN: Duration = Duration::from_millis(500);
 impl Inputs {
     fn new() -> Self {
         Self {
-            forward: DownTime::Nothing,
-            backwards: DownTime::Nothing,
-            left: DownTime::Nothing,
-            right: DownTime::Nothing,
-            up: DownTime::Nothing,
-            down: DownTime::Nothing,
+            forward: false,
+            backwards: false,
+            left: false,
+            right: false,
+            up: false,
+            down: false,
 
             mouse_motion: None,
             mouse_wheel: None,
@@ -265,16 +199,12 @@ impl Inputs {
         }
     }
 
-    fn every_downtime(&mut self) -> IntoIter<&mut DownTime, 6> {
-        [
-            &mut self.forward,
-            &mut self.backwards,
-            &mut self.left,
-            &mut self.right,
-            &mut self.up,
-            &mut self.down,
-        ]
-        .into_iter()
+    pub fn input_vector(&self) -> Vec3 {
+        Vec3::new(
+            self.forward as u32 as f32 - self.backwards as u32 as f32,
+            self.up as u32 as f32 - self.down as u32 as f32,
+            self.right as u32 as f32 - self.left as u32 as f32,
+        )
     }
 }
 
@@ -343,43 +273,55 @@ impl InputEventFilter {
                 // unfocused
                 WindowEvent::Focused(focused) => {
                     if !focused {
-                        self.inputs
-                            .every_downtime()
-                            .for_each(|down_time| down_time.release());
+                        for key in [
+                            &mut self.inputs.forward,
+                            &mut self.inputs.backwards,
+                            &mut self.inputs.right,
+                            &mut self.inputs.left,
+                            &mut self.inputs.up,
+                            &mut self.inputs.down,
+                        ] {
+                            *key = false
+                        }
                     }
 
                     return false;
                 }
 
                 WindowEvent::KeyboardInput { event, .. } => {
+                    if !keyboard_focus {
+                        return true;
+                    }
+
                     let key_code = match event.physical_key {
                         PhysicalKey::Code(key_code) => key_code,
                         _ => return false,
                     };
+                    let is_pressed = event.state.is_pressed();
 
                     match key_code {
-                        KeyCode::Escape if event.state.is_pressed() => {
+                        KeyCode::Escape if is_pressed => {
                             self.inputs.pause = true;
                             return true;
                         }
-                        KeyCode::KeyR if event.state.is_pressed() => {
+                        KeyCode::KeyR if is_pressed => {
                             self.inputs.remesh = true;
                             return true;
                         }
-                        KeyCode::Digit2 if event.state.is_pressed() => {
+                        KeyCode::Digit2 if is_pressed => {
                             self.inputs.lod_up = true;
                             return true;
                         }
-                        KeyCode::Digit1 if event.state.is_pressed() => {
+                        KeyCode::Digit1 if is_pressed => {
                             self.inputs.lod_down = true;
                             return true;
                         }
-                        KeyCode::KeyP if event.state.is_pressed() => {
+                        KeyCode::KeyP if is_pressed => {
                             self.inputs.status = true;
                             return true;
                         }
 
-                        KeyCode::Space if !event.state.is_pressed() => {
+                        KeyCode::Space if !is_pressed => {
                             self.inputs.space.release();
                         }
 
@@ -393,11 +335,8 @@ impl InputEventFilter {
                         }
                         _ => {}
                     }
-                    if !keyboard_focus {
-                        return false;
-                    }
 
-                    let down_time = match key_code {
+                    let movement_key = match key_code {
                         _ if key_code == self.key_map.forward => &mut self.inputs.forward,
                         _ if key_code == self.key_map.backwards => &mut self.inputs.backwards,
                         _ if key_code == self.key_map.left => &mut self.inputs.left,
@@ -407,11 +346,7 @@ impl InputEventFilter {
                         _ => return false,
                     };
 
-                    if event.state.is_pressed() {
-                        down_time.press();
-                    } else {
-                        down_time.release();
-                    }
+                    *movement_key = if is_pressed { true } else { false }
                 }
                 _ => return false,
             },
@@ -420,8 +355,8 @@ impl InputEventFilter {
         true
     }
 
-    pub fn get(&mut self) -> &mut Inputs {
-        &mut self.inputs
+    pub fn get(&self) -> &Inputs {
+        &self.inputs
     }
 
     pub fn frame_done(&mut self) {

@@ -142,7 +142,7 @@ pub const FAR_PLANE: f32 = 10_000.0;
 pub fn update<G: Generator>(
     camera: &mut CamController,
     change_mesh: &mut bool,
-    inputs: &mut Inputs,
+    inputs: & Inputs,
     drawer: &mut gpu::Drawer<'_>,
     server: &mut Server<G>,
     threadpool: &mut threadpool::Threadpool<G>,
@@ -170,30 +170,7 @@ pub fn update<G: Generator>(
         let free_cam = camera.free_cam();
         let on_ground = false; // !free_cam && collision::is_on_ground(server, camera.pos());
 
-        let input_vector = if free_cam {
-            glam::Vec3::new(
-                inputs.forward.process_f32() - inputs.backwards.process_f32(),
-                inputs.up.process_f32() - inputs.down.process_f32(),
-                inputs.right.process_f32() - inputs.left.process_f32(),
-            )
-        } else if on_ground {
-            _ = inputs.up.process_f32();
-            _ = inputs.down.process_f32();
-
-            glam::Vec3::new(
-                inputs.right.process_f32() - inputs.left.process_f32(),
-                0.0,
-                inputs.backwards.process_f32() - inputs.forward.process_f32(),
-            )
-        } else {
-            _ = inputs.right.process_f32();
-            _ = inputs.left.process_f32();
-            _ = inputs.up.process_f32();
-            _ = inputs.down.process_f32();
-            _ = inputs.backwards.process_f32();
-            _ = inputs.forward.process_f32();
-            Vec3::ZERO
-        };
+        let input_vector = inputs.input_vector();
         camera.add_input(input_vector);
         if !free_cam {
             camera.add_acc(Vec3::new(0.0, GRAVITY, 0.0));

@@ -7,6 +7,7 @@ use crate::{
 
 pub struct CamController {
     body: TCBody,
+    pending_acc: Vec3,
 
     free_cam: bool,
     speed: f32, // camera speed
@@ -22,7 +23,7 @@ pub struct CamController {
 
 impl CamController {
     const FRICTION: f32 = 1.0;
-    const STANDART_SPEED: f32 = 100.0;
+    const STANDART_SPEED: f32 = 20.0;
     const MAX_SPEED: f32 = 100.0;
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
     const SENSITIVITY: f32 = 0.0025;
@@ -33,6 +34,7 @@ impl CamController {
 
         Self {
             body: TCBody::new(pos),
+            pending_acc: Vec3::ZERO,
 
             free_cam,
             speed: Self::STANDART_SPEED,
@@ -64,16 +66,21 @@ impl CamController {
             + right * input_vector.z * self.speed
             + Vec3::Y * input_vector.y * self.speed;
 
-        self.body.add_impuls(impuls);
+        self.pending_acc = impuls;
     }
 
     pub fn add_acc(&mut self, acc: Vec3) {
-        self.body.add_impuls(acc * self.delta_time());
+        self.pending_acc = acc;
     }
 
     /// Takes a function which takes the current and the next position and returns the resolved position.
     pub fn advance_pos(&mut self, contrain: impl FnMut(Vec3, Vec3) -> Vec3) {
         self.body.step(self.delta_time(), Self::FRICTION);
+
+        let dt = self.delta_time();
+
+        self.body
+            .constrain(|_, next_pos| next_pos + self.pending_acc * dt / 2. * dt);
 
         self.body.constrain(contrain);
     }
