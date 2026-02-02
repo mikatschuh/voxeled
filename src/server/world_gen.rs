@@ -43,7 +43,7 @@ impl Generator for MountainsAndValleys {
         let mut voxels = [[[VoxelType::Air; 32]; 32]; 32];
 
         for (x, plane) in voxels.iter_mut().enumerate() {
-            for (z, collum) in plane.iter_mut().enumerate() {
+            for z in 0..32 {
                 let height = self.noise.get_octaves(
                     ((x as i32 + chunk_id.pos.x * 32) << chunk_id.lod) as f64,
                     0.0,
@@ -53,8 +53,8 @@ impl Generator for MountainsAndValleys {
                 );
                 assert!(height <= 1.0);
                 assert!(height >= 0.0);
-                for (y, voxel) in collum.iter_mut().enumerate() {
-                    *voxel = if (y as i32 + chunk_id.pos.y * 32) << chunk_id.lod
+                for y in 0..32 {
+                    plane[y][z] = if (y as i32 + chunk_id.pos.y * 32) << chunk_id.lod
                         < ((2.0.pow(height) * self.vertical_area) - self.ground_level) as i32
                     {
                         VoxelType::random_weighted()

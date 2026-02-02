@@ -59,7 +59,7 @@ fn main() {
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let mut server = Server::new(server::world_gen::MountainsAndValleys::new(seed, /*8. * 32.*/));
+    let mut server = Server::new(server::world_gen::OpenCaves::new(seed, /*8. * 32.*/));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
@@ -130,7 +130,7 @@ fn main() {
 const STARTING_POS: Vec3 = Vec3::new(0., 0., 0.);
 
 const FULL_DETAL_DISTANCE: f32 = 6.;
-const RENDER_DISTANCE: f32 = 48.;
+const RENDER_DISTANCE: f32 = 16.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
@@ -207,7 +207,7 @@ pub fn update<G: Generator>(
         });
 
         // if inputs.status {
-        println!("FPS: {}\tpos: {},", 1. / camera.delta_time(), camera.pos());
+        // println!("FPS: {}\tpos: {},", 1. / camera.delta_time(), camera.pos());
         //}
 
         drawer.update_view(camera.view());

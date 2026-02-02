@@ -1,0 +1,11 @@
+{
+  "forward": "W",
+  "backwards": "S",
+  "left": "A",
+  "right": "D",
+  "up": "Space",
+  "down": "Shift",
+  "touchpad_scroll_sensitivity": 0.025,
+  "touchpad_invert_x": false,
+  "touchpad_invert_y": false
+}

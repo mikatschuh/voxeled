@@ -1,10 +1,10 @@
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
-use std::ptr::{null_mut, NonNull};
+use std::ptr::{NonNull, null_mut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
@@ -28,14 +28,14 @@ pub struct GlobalAllocator;
 
 impl CustomAllocator for GlobalAllocator {
     #[inline]
-    unsafe fn allocate(&self, layout: Layout) -> *mut u8 { unsafe {
-        alloc(layout)
-    }}
+    unsafe fn allocate(&self, layout: Layout) -> *mut u8 {
+        unsafe { alloc(layout) }
+    }
 
     #[inline]
-    unsafe fn deallocate(&self, ptr: *mut u8, layout: Layout) { unsafe {
-        dealloc(ptr, layout)
-    }}
+    unsafe fn deallocate(&self, ptr: *mut u8, layout: Layout) {
+        unsafe { dealloc(ptr, layout) }
+    }
 }
 
 // Implementierung des Standard-Allocators
@@ -345,17 +345,6 @@ pub struct Ref<'recv, T> {
     _marker: PhantomData<&'recv ()>,
     ptr: NonNull<T>,
 }
-
-impl<'recv, T> Clone for Ref<'recv, T> {
-    fn clone(&self) -> Self {
-        Self {
-            _marker: PhantomData,
-            ptr: self.ptr,
-        }
-    }
-}
-
-impl<'recv, T> Copy for Ref<'recv, T> {}
 
 impl<'recv, T: Debug> Debug for Ref<'recv, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

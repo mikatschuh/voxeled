@@ -11,9 +11,10 @@ use winit::{
     window::WindowId,
 };
 
-use crate::input::error::InputResult;
+use crate::input::{error::InputResult, settings::KeyMap};
 
 mod error;
+mod settings;
 
 /// Enthält den Zustand einer Taste.
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -231,6 +232,7 @@ pub struct Inputs {
     pub status: bool,
 
     pub space: InputState,
+    pub last_space_press: Option<Instant>,
 }
 
 pub const DOUBLE_CLICK_TIMESPAN: Duration = Duration::from_millis(500);
@@ -259,6 +261,7 @@ impl Inputs {
                 state: FrameState::NotPressed,
                 timestamp: Instant::now(),
             },
+            last_space_press: None,
         }
     }
 
@@ -275,37 +278,6 @@ impl Inputs {
     }
 }
 
-// #[derive(Deserialize)]
-pub struct KeyMap {
-    pub forward: char,
-    pub backwards: char,
-    pub left: char,
-    pub right: char,
-    pub up: char,
-    pub down: char,
-
-    touchpad_sensitivity: f32,
-    touchpad_invert_x: bool,
-    touchpad_invert_y: bool,
-}
-
-impl KeyMap {
-    fn new() -> Self {
-        Self {
-            forward: ' ',
-            backwards: ' ',
-            left: ' ',
-            right: ' ',
-            up: ' ',
-            down: ' ',
-
-            touchpad_sensitivity: 0.01,
-            touchpad_invert_x: false,
-            touchpad_invert_y: false,
-        }
-    }
-}
-
 pub struct InputEventFilter {
     pub key_map: KeyMap,
     pub inputs: Inputs,
@@ -313,14 +285,8 @@ pub struct InputEventFilter {
 
 impl InputEventFilter {
     pub fn new() -> InputResult<Self> {
-        /*let mut settings = File::open("settings.json")?;
-        let mut json_settings = String::new();
-        settings.read_to_string(&mut json_settings);
-        let key_map: KeyMap = serde_json::from_str(&json_settings)?;
-        */
-
         Ok(InputEventFilter {
-            key_map: KeyMap::new(),
+            key_map: KeyMap::from_file("keymap.json")?,
             inputs: Inputs::new(),
         })
     }
@@ -358,7 +324,7 @@ impl InputEventFilter {
                     self.inputs.mouse_wheel = Some(PhysicalPosition::new(
                         self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).x
                             + delta.x as f32
-                                * self.key_map.touchpad_sensitivity
+                                * self.key_map.touchpad_scroll_sensitivity
                                 * if self.key_map.touchpad_invert_x {
                                     -1.
                                 } else {
@@ -366,7 +332,7 @@ impl InputEventFilter {
                                 },
                         self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y
                             - delta.y as f32
-                                * self.key_map.touchpad_sensitivity
+                                * self.key_map.touchpad_scroll_sensitivity
                                 * if self.key_map.touchpad_invert_y {
                                     -1.
                                 } else {
@@ -432,12 +398,12 @@ impl InputEventFilter {
                     }
 
                     let down_time = match key_code {
-                        KeyCode::KeyW => &mut self.inputs.forward,
-                        KeyCode::KeyS => &mut self.inputs.backwards,
-                        KeyCode::KeyA => &mut self.inputs.left,
-                        KeyCode::KeyD => &mut self.inputs.right,
-                        KeyCode::Space => &mut self.inputs.up,
-                        KeyCode::ShiftLeft => &mut self.inputs.down,
+                        _ if key_code == self.key_map.forward => &mut self.inputs.forward,
+                        _ if key_code == self.key_map.backwards => &mut self.inputs.backwards,
+                        _ if key_code == self.key_map.left => &mut self.inputs.left,
+                        _ if key_code == self.key_map.right => &mut self.inputs.right,
+                        _ if key_code == self.key_map.up => &mut self.inputs.up,
+                        _ if key_code == self.key_map.down => &mut self.inputs.down,
                         _ => return false,
                     };
 

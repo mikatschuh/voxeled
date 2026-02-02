@@ -25,7 +25,7 @@ impl CamController {
     const STANDART_SPEED: f32 = 100.0;
     const MAX_SPEED: f32 = 100.0;
     const ACC_CHANGE_SENSITIVITY: f32 = 3.0;
-    const SENSITIVITY: f32 = 0.001;
+    const SENSITIVITY: f32 = 0.0025;
 
     pub fn new(pos: Vec3, yaw: f32, pitch: f32, free_cam: bool, delta_time: DeltaTime) -> Self {
         let dir = dir_from_angle(yaw, pitch);
@@ -79,17 +79,14 @@ impl CamController {
     }
 
     pub fn update_speed(&mut self, change: f32) {
-        let change = change * Self::ACC_CHANGE_SENSITIVITY;
-        self.speed = (self.speed
-            * if change >= 0.0 {
-                change
-            } else {
-                1.0 / change.abs()
-            })
-        .clamp(
+        self.speed *= (Self::ACC_CHANGE_SENSITIVITY * change).exp();
+
+        self.speed = self.speed.clamp(
             Self::STANDART_SPEED / Self::MAX_SPEED,
             Self::STANDART_SPEED * Self::MAX_SPEED,
         );
+
+        println!("new speed: {}", self.speed);
     }
 
     pub fn toggle_free_cam(&mut self) {

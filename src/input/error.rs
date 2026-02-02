@@ -16,6 +16,8 @@ pub enum InputError {
     JSONSyntaxError,
     JSONSemanticsError,
     JSONIOError,
+
+    UnknownKeys,
 }
 
 impl Display for InputError {
@@ -33,6 +35,8 @@ impl Display for InputError {
                 JSONSyntaxError => "the settings file didn't contain valid JSON syntax",
                 JSONSemanticsError => "the settings file didn't contain semantically correct JSON",
                 JSONIOError => "an IO error occured in the process of processing the JSON",
+
+                UnknownKeys => "the settings file did contain unknown keys",
             }
         )
     }
