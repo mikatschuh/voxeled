@@ -280,9 +280,9 @@ impl Generator for Box {
                     *voxel = if pos.0 < self.size
                         && pos.1 < self.size
                         && pos.2 < self.size
-                        && pos.0 > -self.size
-                        && pos.1 > -self.size
-                        && pos.2 > -self.size
+                        && pos.0 >= -self.size
+                        && pos.1 >= -self.size
+                        && pos.2 >= -self.size
                     {
                         VoxelType::Air
                     } else {
