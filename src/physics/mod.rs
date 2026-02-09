@@ -1,5 +1,7 @@
 mod cam_controller;
 mod collision;
+#[cfg(test)]
+mod test;
 mod time;
 mod verlet;
 
