@@ -110,7 +110,7 @@ pub struct RainDrops {
 }
 
 impl RainDrops {
-    fn new(seed: Seed) -> Self {
+    pub fn new(seed: Seed) -> Self {
         Self {
             seed,
             noise: Noise::new(seed as u32),
