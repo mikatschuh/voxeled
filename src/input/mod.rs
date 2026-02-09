@@ -6,8 +6,8 @@ use std::{
 use glam::Vec3;
 use winit::{
     dpi::PhysicalPosition,
-    event::{DeviceEvent, Event, MouseScrollDelta, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
+    event::{DeviceEvent, Event, KeyEvent, MouseScrollDelta, WindowEvent},
+    keyboard::{Key, KeyCode, PhysicalKey},
     window::WindowId,
 };
 
@@ -286,6 +286,18 @@ impl InputEventFilter {
                     }
 
                     return false;
+                }
+
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            physical_key: PhysicalKey::Code(KeyCode::Escape),
+                            state,
+                            ..
+                        },
+                    ..
+                } if state.is_pressed() => {
+                    self.inputs.pause = true;
                 }
 
                 WindowEvent::KeyboardInput { event, .. } => {
