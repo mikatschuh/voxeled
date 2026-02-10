@@ -1,7 +1,6 @@
 use glam::{IVec3, Vec3};
-use num::Rational32;
 
-use crate::{main, physics::block};
+use crate::physics::{block, block_coord};
 
 pub trait Voxel {
     fn solid_at(&self, pos: IVec3) -> bool;
@@ -18,194 +17,156 @@ pub trait Voxel {
 
 const PLAYER_HALF_EXTENTS: Vec3 = Vec3::new(0.3, 0.9, 0.3);
 
-const EPSILON: f32 = 0.000001;
+const EPSILON: f32 = 0.00001;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Aabb {
-    pos: Vec3,
-    half_extends: Vec3,
+    min: Vec3,
+    max: Vec3,
 }
 
 impl Aabb {
     pub fn player(pos: Vec3) -> Self {
         Self {
-            pos,
-            half_extends: PLAYER_HALF_EXTENTS,
+            min: pos - PLAYER_HALF_EXTENTS,
+            max: pos + PLAYER_HALF_EXTENTS,
         }
     }
 
     pub fn new(pos: Vec3, half_extends: Vec3) -> Self {
-        Self { pos, half_extends }
+        Self {
+            min: pos - half_extends,
+            max: pos + half_extends,
+        }
     }
 
-    /// Computes final position
-    pub fn compute_sweep(mut self, voxel: &impl Voxel, mut delta: Vec3) -> Vec3 {
-        loop {
-            let max_element = delta.abs().max_element();
-            if max_element > 1. {
-                let step = delta / max_element;
-                self.aabb_step_along_path(voxel, step);
-                delta -= step;
-            } else {
-                self.aabb_step_along_path(voxel, delta);
+    pub fn player_pos(&self) -> Vec3 {
+        self.min + PLAYER_HALF_EXTENTS
+    }
 
-                return self.pos;
-            }
-        }
+    pub fn step(&mut self, delta: Vec3) {
+        self.min += delta;
+        self.max += delta;
+    }
+
+    pub fn step_x(&mut self, delta: f32) {
+        self.min.x += delta;
+        self.max.x += delta;
+    }
+
+    pub fn step_y(&mut self, delta: f32) {
+        self.min.y += delta;
+        self.max.y += delta;
+    }
+
+    pub fn step_z(&mut self, delta: f32) {
+        self.min.z += delta;
+        self.max.z += delta;
     }
 
     fn corners_blocked(&self) -> (IVec3, IVec3) {
-        (
-            block(self.pos - self.half_extends),
-            block(self.pos + self.half_extends),
-        )
+        (block(self.min), block(self.max))
     }
 
     fn corners(&self) -> (Vec3, Vec3) {
-        (self.pos - self.half_extends, self.pos + self.half_extends)
+        (self.min, self.max)
     }
 
-    fn aabb_step_along_path(&mut self, voxel: &impl Voxel, step: Vec3) {
-        let (neg_corner, pos_corner) = self.corners();
+    pub fn sweep_through_voxel(
+        &mut self,
+        voxel: &impl Voxel,
+        mut delta: Vec3,
+        mut material_coef: f32,
+    ) -> Vec3 {
+        if voxel.check_volume_for_collision(self.corners_blocked()) {
+            // return self.player_pos() + delta;
+        }
 
-        let borders = Vec3::new(
-            if step.x.is_sign_positive() {
-                pos_corner.x
+        loop {
+            let max_element = delta.abs().max_element();
+            let step = if max_element > 1. {
+                delta / max_element
+            } else if max_element < EPSILON {
+                return self.player_pos();
             } else {
-                neg_corner.x
-            },
-            if step.y.is_sign_positive() {
-                pos_corner.y
-            } else {
-                neg_corner.y
-            },
-            if step.z.is_sign_positive() {
-                pos_corner.z
-            } else {
-                neg_corner.z
-            },
-        );
+                delta
+            };
 
-        let mut x_corners = {
-            let x = borders.x + step.x;
+            let x_positive = step.x.is_sign_positive();
+            let y_positive = step.y.is_sign_positive();
+            let z_positive = step.z.is_sign_positive();
 
-            if x.floor() != borders.x.floor() {
+            // create check on x axis
+            let x = if x_positive { self.max } else { self.min }.x;
+            let x_space = 1. - x.abs().fract() - EPSILON;
+            let x_check = if x_space < step.x.abs() {
+                let check_x = x + step.x.signum();
                 Some((
-                    Vec3::new(x, neg_corner.y, neg_corner.z),
-                    Vec3::new(x, pos_corner.y, pos_corner.z),
+                    block(Vec3::new(check_x, self.min.y, self.min.z)),
+                    block(Vec3::new(check_x, self.max.y, self.max.z)),
                 ))
             } else {
                 None
-            }
-        };
+            };
 
-        let mut y_corners = {
-            let y = borders.y + step.y;
-
-            if y.floor() != borders.y.floor() {
+            // create check on y axis
+            let y = if y_positive { self.max } else { self.min }.y;
+            let y_space = 1. - y.abs().fract() - EPSILON;
+            let y_check = if y_space < step.y.abs() {
+                let check_y = y + step.y.signum();
                 Some((
-                    Vec3::new(neg_corner.x, y, neg_corner.z),
-                    Vec3::new(pos_corner.x, y, pos_corner.z),
+                    block(Vec3::new(self.min.x, check_y, self.min.z)),
+                    block(Vec3::new(self.max.x, check_y, self.max.z)),
                 ))
             } else {
                 None
-            }
-        };
+            };
 
-        let mut z_corners = {
-            let z = borders.z + step.z;
-
-            if z.floor() != borders.z.floor() {
+            // create check on z axis
+            let z = if z_positive { self.max } else { self.min }.z;
+            let z_space = 1. - z.abs().fract() - EPSILON;
+            let z_check = if z_space < step.z.abs() {
+                let check_z = z + step.z.signum();
                 Some((
-                    Vec3::new(neg_corner.x, neg_corner.y, z),
-                    Vec3::new(pos_corner.x, pos_corner.y, z),
+                    block(Vec3::new(self.min.x, self.min.y, check_z)),
+                    block(Vec3::new(self.max.x, self.max.y, check_z)),
                 ))
             } else {
                 None
+            };
+
+            if x_check.is_some_and(|check| voxel.check_volume_for_collision(check)) {
+                let remainder = step.x.signum() * x_space;
+
+                delta.x -= remainder;
+                self.step_x(remainder);
+                delta.x *= -material_coef;
+            } else {
+                delta.x -= step.x;
+                self.step_x(step.x);
             }
-        };
 
-        if !x_corners
-            .map(|x_corners| {
-                voxel.check_volume_for_collision((block(x_corners.0), block(x_corners.1)))
-            })
-            .is_some_and(|coll| coll)
-        {
-            self.pos.x += step.x
-        } else if step.x.is_sign_positive() {
-            let frame = pos_corner.x;
-            self.pos.x += frame.ceil() - frame;
-        } else {
-            let frame = neg_corner.x;
-            self.pos.x += frame.floor() - frame;
-        }
+            if y_check.is_some_and(|check| voxel.check_volume_for_collision(check)) {
+                let remainder = step.y.signum() * y_space;
 
-        if !y_corners
-            .map(|y_corners| {
-                voxel.check_volume_for_collision((block(y_corners.0), block(y_corners.1)))
-            })
-            .is_some_and(|coll| coll)
-        {
-            self.pos.y += step.y
-        } else if step.y.is_sign_positive() {
-            let frame = pos_corner.y;
-            self.pos.y += frame.ceil() - frame;
-        } else {
-            let frame = neg_corner.y;
-            self.pos.y += frame.floor() - frame;
-        }
+                delta.y -= remainder;
+                self.step_y(remainder);
+                delta.y *= -material_coef;
+            } else {
+                delta.y -= step.y;
+                self.step_y(step.y);
+            }
 
-        if !z_corners
-            .map(|z_corners| {
-                voxel.check_volume_for_collision((block(z_corners.0), block(z_corners.1)))
-            })
-            .is_some_and(|coll| coll)
-        {
-            self.pos.z += step.z
-        } else if step.z.is_sign_positive() {
-            let frame = pos_corner.z;
-            self.pos.z += frame.ceil() - frame;
-        } else {
-            let frame = neg_corner.z;
-            self.pos.z += frame.floor() - frame;
-        }
+            if z_check.is_some_and(|check| voxel.check_volume_for_collision(check)) {
+                let remainder = step.z.signum() * z_space;
 
-        // x_corners.as_mut().map(|x_corners| if y_corners.is_some() &&step.y.is_sign_positive() {x_corners.1.y+1})}
-    }
-
-    fn moves_into_new_block_on_x(&self, movement: f32) -> bool {
-        if movement.is_sign_positive() {
-            let leading = self.pos.x + self.half_extends.x;
-            (leading - EPSILON).floor() != (leading + movement - EPSILON).floor()
-        } else if movement.is_sign_negative() {
-            let trailing = self.pos.x - self.half_extends.x;
-            (trailing + EPSILON).floor() != (trailing + movement + EPSILON).floor()
-        } else {
-            false
-        }
-    }
-
-    fn moves_into_new_block_on_y(&self, movement: f32) -> bool {
-        if movement.is_sign_positive() {
-            let leading = self.pos.y + self.half_extends.y;
-            (leading - EPSILON).floor() != (leading + movement - EPSILON).floor()
-        } else if movement.is_sign_negative() {
-            let trailing = self.pos.y - self.half_extends.y;
-            (trailing + EPSILON).floor() != (trailing + movement + EPSILON).floor()
-        } else {
-            false
-        }
-    }
-
-    fn moves_into_new_block_on_z(&self, movement: f32) -> bool {
-        if movement.is_sign_positive() {
-            let leading = self.pos.z + self.half_extends.z;
-            (leading - EPSILON).floor() != (leading + movement - EPSILON).floor()
-        } else if movement.is_sign_negative() {
-            let trailing = self.pos.z - self.half_extends.z;
-            (trailing + EPSILON).floor() != (trailing + movement + EPSILON).floor()
-        } else {
-            false
+                delta.z -= remainder;
+                self.step_z(remainder);
+                delta.z *= -material_coef;
+            } else {
+                delta.z -= step.z;
+                self.step_z(step.z);
+            }
         }
     }
 }
@@ -223,39 +184,5 @@ mod test {
         fn solid_at(&self, pos: IVec3) -> bool {
             pos == self.0
         }
-    }
-
-    #[test]
-    fn test_helper() {
-        let aabb = Aabb::player(Vec3::ZERO);
-
-        assert!(aabb.moves_into_new_block_on_x(0.8))
-    }
-
-    #[test]
-    fn test_touching_boundary_blocks_positive_step() {
-        let voxel = SingleSolid(IVec3::new(1, 0, 0));
-        let aabb = Aabb::player(Vec3::new(0.7, 0.0, 0.0)); // max face at x=1.0
-        let result = aabb.compute_sweep(&voxel, Vec3::new(0.05, 0.0, 0.0));
-
-        assert!((result.x - 0.7).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_step_before_boundary_moves() {
-        let voxel = SingleSolid(IVec3::new(1, 0, 0));
-        let aabb = Aabb::player(Vec3::new(0.69, 0.0, 0.0)); // max face at x=0.99
-        let result = aabb.compute_sweep(&voxel, Vec3::new(0.005, 0.0, 0.0));
-
-        assert!((result.x - 0.695).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_touching_boundary_blocks_negative_step() {
-        let voxel = SingleSolid(IVec3::new(-1, 0, 0));
-        let aabb = Aabb::player(Vec3::new(0.3, 0.0, 0.0)); // min face at x=0.0
-        let result = aabb.compute_sweep(&voxel, Vec3::new(-0.05, 0.0, 0.0));
-
-        assert!((result.x - 0.3).abs() < 1e-6);
     }
 }

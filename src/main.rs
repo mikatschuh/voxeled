@@ -54,12 +54,12 @@ fn main() {
         return;
     };*/
 
-    let mut threadpool = threadpool::Threadpool::new(6); //num_cpus::get() - 1);
+    let mut threadpool = threadpool::Threadpool::new(2); //num_cpus::get() - 1);
 
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let mut server = Server::new(server::world_gen::Box::new(seed, 2. * 32.));
+    let mut server = Server::new(server::world_gen::OpenCaves::new(seed));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
@@ -130,7 +130,7 @@ fn main() {
 const STARTING_POS: Vec3 = Vec3::new(0.,-20., 0.);
 
 const FULL_DETAL_DISTANCE: f32 = 6.;
-const RENDER_DISTANCE: f32 = 8.;
+const RENDER_DISTANCE: f32 = 48.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
@@ -180,7 +180,7 @@ pub fn update<G: Generator>(
         }
 
         camera.advance_pos(|start_pos, intended_pos| {
-            Aabb::player(start_pos).compute_sweep(server, intended_pos - start_pos)
+            Aabb::player(start_pos).sweep_through_voxel(server, intended_pos - start_pos, 0.8)
         });
 
         // if inputs.status {
