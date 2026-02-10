@@ -15,7 +15,6 @@ pub struct CamController {
     yaw: f32, // source of truth
     pitch: f32,
 
-    rot: Quat, // cached calculations
     dir: Vec3,
 
     delta_time: DeltaTime,
@@ -39,7 +38,6 @@ impl CamController {
             free_cam,
             speed: Self::STANDART_SPEED,
 
-            rot,
             dir,
             yaw,
             pitch,
@@ -54,7 +52,7 @@ impl CamController {
         self.pitch += pitch * Self::SENSITIVITY;
 
         self.dir = dir_from_angle(self.yaw, self.pitch);
-        self.rot = Quat::from_rotation_y(yaw) * Quat::from_rotation_z(pitch);
+        // self.rot = Quat::from_rotation_y(yaw) * Quat::from_rotation_z(pitch);
     }
 
     /// Bewegt die Kamera in eine Richtung relativ zur Richtung in die die Kamera zeigt.
