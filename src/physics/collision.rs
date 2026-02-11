@@ -176,10 +176,6 @@ impl Aabb {
         mut delta: Vec3,
         mut material_coef: f32,
     ) -> Vec3 {
-        if voxel.check_volume_for_collision(self.corners_blocked()) {
-            return self.player_pos() + delta;
-        }
-
         loop {
             let max_element = delta.abs().max_element();
             let step = if max_element > 1. {
