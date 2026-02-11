@@ -54,7 +54,7 @@ fn main() {
         return;
     };*/
 
-    let mut threadpool = threadpool::Threadpool::new(2); //num_cpus::get() - 1);
+    let mut threadpool = threadpool::Threadpool::new(1); //num_cpus::get() - 1);
 
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
@@ -155,6 +155,8 @@ pub fn update<G: Generator>(
     }
 
     if drawer.window.focused() {
+        let prev_cam_pos = camera.pos();
+
         if inputs.free_cam {
             camera.toggle_free_cam();
         }
@@ -180,11 +182,15 @@ pub fn update<G: Generator>(
         }
 
         camera.advance_pos(|start_pos, intended_pos| {
-            Aabb::player(start_pos).sweep_through_voxel(server, intended_pos - start_pos, 0.8)
+            Aabb::player(start_pos).sweep_through_voxel(server, intended_pos - start_pos, 0.2)
         });
 
         // if inputs.status {
-        println!("FPS: {}\tpos: {},", 1. / camera.delta_time(), camera.pos());
+        println!("FPS: {}\tpos: [{}]\tvel: {:+12.5} kmh",
+            1. / camera.delta_time(),
+            camera.pos().to_array().map(|n| format!("{:+10.3}", n)).into_iter().reduce(|acc, s| acc + ", " + &s).unwrap(),
+            (camera.pos() - prev_cam_pos).length() / camera.delta_time() / 3.6
+        );
         //}
 
         drawer.update_view(camera.view());
