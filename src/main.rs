@@ -9,7 +9,7 @@ use winit::{
 use crate::{
     cam_controller::CamController, input::Inputs
 };
-use voxine::{DeltaTimeMeter, Frustum, Server, Threadpool, physics::{self, Aabb}, world_gen::{self, Generator}};
+use voxine::{ComposeableGenerator, DeltaTimeMeter, Frustum, Generator, Server, Threadpool, physics::{self, Aabb}};
 
 // mod collision;
 // mod console;
@@ -51,7 +51,7 @@ fn main() {
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let mut server = Server::new(world_gen::OpenCaves::new(seed));
+    let mut server = Server::new(ComposeableGenerator::mountains_and_valleys(seed));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
@@ -121,13 +121,13 @@ fn main() {
     threadpool.drop()
 }
 
-const NUM_CPUS: usize = 99;
+const NUM_CPUS: usize = 3;
 
-const STARTING_POS: Vec3 = Vec3::new(0.,-20., 0.);
+const STARTING_POS: Vec3 = Vec3::new(0.,0., 0.);
 
-const FULL_DETAL_DISTANCE: f32 = 10.;
-const RENDER_DISTANCE: f32 = 48.;
-const MAX_CHUNKS: usize = 1_000_000_000;
+const FULL_DETAL_DISTANCE: f32 = 12.;
+const RENDER_DISTANCE: f32 = 10_000. / 32.;
+const MAX_CHUNKS: usize = 5000;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
