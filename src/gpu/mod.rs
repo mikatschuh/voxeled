@@ -1,7 +1,6 @@
 use glam::Vec3;
-use instance::Instance;
-use mesh::*;
 use texture::Texture;
+use vertex::*;
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
@@ -13,14 +12,13 @@ use crate::{
     },
 };
 
-pub mod instance;
 // pub mod exotic_cameras;
 mod buffer_pool;
-pub mod mesh;
 pub mod projection;
 mod shader;
 mod texture;
 pub mod texture_set;
+pub mod vertex;
 pub mod window;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
@@ -63,7 +61,7 @@ pub struct Drawer<'a> {
     num_indices: u32,
 
     max_instances: usize,
-    mesh: Mesh,
+    mesh: voxine::Mesh,
     instance_buffer_pool: BufferPool,
 }
 
@@ -309,9 +307,9 @@ impl<'a> Drawer<'a> {
             usage: wgpu::BufferUsages::INDEX,
         });
         let max_buffer_size = 268435456; //device.limits().max_buffer_size as usize;
-        let max_instances = 268435456 / size_of::<Instance>();
+        let max_instances = 268435456 / size_of::<voxine::Instance>();
 
-        let mesh = Mesh::with_capacity(max_buffer_size * 6);
+        let mesh = voxine::Mesh::with_capacity(max_buffer_size * 6);
         let instance_buffer_pool = BufferPool::new(&device, 6, max_buffer_size);
 
         let render_target = Texture::create_rendering_target(&device, &config);
@@ -395,7 +393,7 @@ impl<'a> Drawer<'a> {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[Vertex::desc(), Instance::desc()],
+                    buffers: &[Vertex::desc(), voxine::Instance::desc()],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
@@ -581,7 +579,7 @@ impl<'a> Drawer<'a> {
         );
     }
 
-    pub fn update_mesh(&mut self, mesh: Mesh) {
+    pub fn update_mesh(&mut self, mesh: voxine::Mesh) {
         self.mesh = mesh;
     }
 

@@ -1,5 +1,4 @@
 use glam::Vec3;
-use server::Server;
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -8,25 +7,18 @@ use winit::{
 };
 
 use crate::{
-    input::Inputs,
-    physics::{Aabb, CamController, DeltaTimeMeter},
-    server::{frustum::Frustum, world_gen::Generator},
+    cam_controller::CamController, input::Inputs
 };
+use voxine::{DeltaTimeMeter, Frustum, Server, Threadpool, physics::{self, Aabb}, world_gen::{self, Generator}};
 
 // mod collision;
 // mod console;
-#[allow(dead_code)]
-mod data_structures;
+
 mod gpu;
 mod input;
-mod netcode;
-#[allow(unused)]
-mod physics;
+mod cam_controller;
 #[allow(unused)]
 mod playground;
-mod random;
-mod server;
-mod threadpool;
 
 fn main() {
     env_logger::init(); // this logs error messages
@@ -54,16 +46,17 @@ fn main() {
         return;
     };*/
 
-    let mut threadpool = threadpool::Threadpool::new(NUM_CPUS.min(num_cpus::get() - 1));
+    let mut threadpool = Threadpool::new(NUM_CPUS.min(num_cpus::get() - 1));
 
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let mut server = Server::new(server::world_gen::OpenCaves::new(seed));
+    let mut server = Server::new(world_gen::OpenCaves::new(seed));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
     let mut change_mesh = true;
+    let mut toggle_impl = true;
 
     // ping the server:
 
@@ -97,6 +90,7 @@ fn main() {
                                     update(
                                         &mut camera,
                                         &mut change_mesh,
+                                        &mut toggle_impl,
                                         inputs,
                                         &mut drawer,
                                         &mut server,
@@ -145,16 +139,20 @@ pub const FAR_PLANE: f32 = 10_000.0;
 pub fn update<G: Generator>(
     camera: &mut CamController,
     change_mesh: &mut bool,
+    toggle_impl: &mut bool,
     inputs: & Inputs,
     drawer: &mut gpu::Drawer<'_>,
     server: &mut Server<G>,
-    threadpool: &mut threadpool::Threadpool<G>,
+    threadpool: &mut Threadpool<G>,
 ) {
     if inputs.pause {
         drawer.window.flip_focus()
     }
     if inputs.remesh {
         *change_mesh = !*change_mesh;
+    }
+    if inputs.toggle_impl {
+        *toggle_impl = !*toggle_impl;
     }
 
     if drawer.window.focused() {
@@ -209,8 +207,11 @@ pub fn update<G: Generator>(
                 fov: FOV,
                 aspect_ratio: drawer.window.aspect_ratio,
                 max_chunks: MAX_CHUNKS,
-                max_distance: RENDER_DISTANCE
+                max_distance: RENDER_DISTANCE,
+                full_detail_range: FULL_DETAL_DISTANCE,
             },
+            *toggle_impl
+            ,
             threadpool,
         ));
     }

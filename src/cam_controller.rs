@@ -1,8 +1,9 @@
-use glam::{Quat, Vec3};
+use glam::Vec3;
+use voxine::DeltaTime;
 
 use crate::{
     gpu::projection::{View, dir_from_angle},
-    physics::{TCBody, time::DeltaTime, verlet::Body},
+    physics::TCBody,
 };
 
 pub struct CamController {
@@ -29,7 +30,6 @@ impl CamController {
 
     pub fn new(pos: Vec3, yaw: f32, pitch: f32, free_cam: bool, delta_time: DeltaTime) -> Self {
         let dir = dir_from_angle(yaw, pitch);
-        let rot = Quat::from_rotation_y(yaw) * Quat::from_rotation_z(pitch);
 
         Self {
             body: TCBody::new(pos),

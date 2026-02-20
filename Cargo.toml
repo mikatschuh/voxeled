@@ -12,18 +12,17 @@ wgpu = "25.0"
 pollster = "0.3"
 bytemuck = { version = "1.16", features = ["derive"] }
 glam = "0.23"
-crossbeam = "0.8.4"
 num_cpus = "1.16"
 rand = "0.8.5"
 noise = "*"
 colored = "2.0"
 rustyline = "13"
 num = "*"
-parking_lot = "*"
-tokio = "*"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+voxine = { git = "https://github.com/mikatschuh/voxeled-engine" }
 
 [dependencies.image]
 version = "0.24"

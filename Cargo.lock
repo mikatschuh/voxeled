@@ -1867,9 +1867,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.48.0"
+version = "1.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
+checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "pin-project-lite",
 ]
@@ -1946,7 +1946,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "colored",
- "crossbeam",
  "env_logger",
  "glam",
  "image",
@@ -1954,15 +1953,31 @@ dependencies = [
  "noise",
  "num",
  "num_cpus",
- "parking_lot",
  "pollster",
  "rand",
  "rustyline",
  "serde",
  "serde_json",
- "tokio",
+ "voxine",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "voxine"
+version = "0.1.0"
+source = "git+https://github.com/mikatschuh/voxeled-engine#5f64970948efe841b025983694bbab572d3274d8"
+dependencies = [
+ "bytemuck",
+ "colored",
+ "crossbeam",
+ "glam",
+ "noise",
+ "num_cpus",
+ "parking_lot",
+ "rand",
+ "tokio",
+ "wgpu",
 ]
 
 [[package]]
@@ -2346,7 +2361,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

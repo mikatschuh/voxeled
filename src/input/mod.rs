@@ -164,6 +164,7 @@ pub struct Inputs {
     pub lod_down: bool,
     pub free_cam: bool,
     pub status: bool,
+    pub toggle_impl: bool,
 
     pub space: InputState,
     pub last_space_press: Option<Instant>,
@@ -190,6 +191,7 @@ impl Inputs {
             lod_down: false,
             free_cam: false,
             status: false,
+            toggle_impl: false,
 
             space: InputState {
                 state: FrameState::NotPressed,
@@ -332,6 +334,10 @@ impl InputEventFilter {
                             self.inputs.status = true;
                             return true;
                         }
+                        KeyCode::KeyT if is_pressed => {
+                            self.inputs.toggle_impl = true;
+                            return true;
+                        }
 
                         KeyCode::Space if !is_pressed => {
                             self.inputs.space.release();
@@ -381,6 +387,7 @@ impl InputEventFilter {
         self.inputs.lod_down = false;
         self.inputs.free_cam = false;
         self.inputs.status = false;
+        self.inputs.toggle_impl = false;
 
         self.inputs.space.frame_done();
     }
