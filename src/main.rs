@@ -54,7 +54,7 @@ fn main() {
         return;
     };*/
 
-    let mut threadpool = threadpool::Threadpool::new(1); //num_cpus::get() - 1);
+    let mut threadpool = threadpool::Threadpool::new(NUM_CPUS.min(num_cpus::get() - 1));
 
     let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
@@ -127,14 +127,17 @@ fn main() {
     threadpool.drop()
 }
 
+const NUM_CPUS: usize = 99;
+
 const STARTING_POS: Vec3 = Vec3::new(0.,-20., 0.);
 
-const FULL_DETAL_DISTANCE: f32 = 6.;
-const RENDER_DISTANCE: f32 = 48.;
+const FULL_DETAL_DISTANCE: f32 = 16.;
+const RENDER_DISTANCE: f32 = 96.;
+const MAX_CHUNKS: usize = 1_000_000_000;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
-pub const FOV: f32 = std::f32::consts::FRAC_PI_2;
+pub const FOV: f32 = std::f32::consts::FRAC_PI_3;
 pub const NEAR_PLANE: f32 = 0.1;
 pub const FAR_PLANE: f32 = 10_000.0;
 
@@ -185,13 +188,13 @@ pub fn update<G: Generator>(
             Aabb::player(start_pos).sweep_through_voxel(server, intended_pos - start_pos, 0.2)
         });
 
-        // if inputs.status {
+        if inputs.status {
         println!("FPS: {}\tpos: [{}]\tvel: {:+12.5} kmh",
             1. / camera.delta_time(),
             camera.pos().to_array().map(|n| format!("{:+10.3}", n)).into_iter().reduce(|acc, s| acc + ", " + &s).unwrap(),
             (camera.pos() - prev_cam_pos).length() / camera.delta_time() / 3.6
         );
-        //}
+        }
 
         drawer.update_view(camera.view());
     }
@@ -205,7 +208,8 @@ pub fn update<G: Generator>(
                 direction: camera.dir(),
                 fov: FOV,
                 aspect_ratio: drawer.window.aspect_ratio,
-                render_distance: RENDER_DISTANCE,
+                max_chunks: MAX_CHUNKS,
+                max_distance: RENDER_DISTANCE
             },
             threadpool,
         ));

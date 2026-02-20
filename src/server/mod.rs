@@ -46,7 +46,9 @@ impl<G: Generator> Server<G> {
 
         let cam_chunk_pos = (frustum.cam_pos / 32.0).as_ivec3();
 
-        let chunks: Vec<ChunkID> = frustum.chunk_ids().collect(); // cube(8, 0).collect();
+        let now = Instant::now();
+        let chunks: Vec<ChunkID> = frustum.flood_fill(); // cube(8, 0).collect();
+        println!("flood_fill: {}", now.elapsed().as_micros());
 
         chunks.iter().copied().for_each(|chunk_id| {
             if self.mesh_ready(chunk_id) {
@@ -107,7 +109,7 @@ impl<G: Generator> Server<G> {
                 let mut next = candidate;
                 let mut found = false;
                 while next.lod < MAX_LOD {
-                    next = next.parent_lod();
+                    next = next.parent();
                     if self.mesh_ready(next) {
                         candidate = next;
                         found = true;
@@ -163,7 +165,7 @@ impl<G: Generator> Voxel for Server<G> {
         let (mut chunk_pos, mut local_pos) = chunk_and_local(pos);
 
         for lod in 0..=MAX_LOD {
-            if let Some(voxel) = self
+            if let Some(is_solid) = self
                 .level
                 .chunk_op(chunks::ChunkID::new(lod, chunk_pos), |chunk| {
                     let guard = chunk.voxel.read();
@@ -171,11 +173,11 @@ impl<G: Generator> Voxel for Server<G> {
                     let x = local_pos.x as usize;
                     let y = local_pos.y as usize;
                     let z = local_pos.z as usize;
-                    Some(voxel[x][y][z])
+                    Some(voxel[x][y][z].is_physically_solid())
                 })
                 .flatten()
             {
-                return voxel.is_physically_solid();
+                return is_solid;
             } else {
                 local_pos = ((chunk_pos & 1) << 4) | (local_pos >> 1);
                 chunk_pos = chunk_pos >> 1;

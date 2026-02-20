@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use glam::IVec3;
+use glam::{IVec3, Vec3};
 use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::{
@@ -29,10 +29,30 @@ impl ChunkID {
         self.pos << self.lod
     }
 
-    pub fn parent_lod(self) -> Self {
+    pub fn parent(self) -> Self {
         Self {
             lod: self.lod + 1,
             pos: self.pos >> 1,
+        }
+    }
+
+    pub fn size(self) -> f32 {
+        (1 << self.lod) as f32
+    }
+
+    pub fn from_pos(v: Vec3, lod: LodLevel) -> Self {
+        Self {
+            lod,
+            pos: v.floor().as_ivec3(),
+        }
+    }
+}
+
+impl From<Vec3> for ChunkID {
+    fn from(value: Vec3) -> Self {
+        Self {
+            lod: 0,
+            pos: value.floor().as_ivec3(),
         }
     }
 }
