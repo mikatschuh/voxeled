@@ -5,7 +5,7 @@ const FOG_COLOR_HIGH: vec3<f32> = vec3(0.05, 0.055, 0.06);
 
 const FOG_START: f32 = 0.03;
 const FOG_END: f32 = 0.85;
-const FOG_DENSITY: f32 = 14.0;
+const FOG_DENSITY: f32 = 100.0;
 const FOG_MAX: f32 = 0.85;
 
 fn apply_effects(pos: vec2<f32>, color: vec3<f32>, depth: f32) -> vec3<f32> {
