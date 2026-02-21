@@ -29,7 +29,7 @@ struct PostProcessingOutput {
 @fragment fn post_processing(in: PostProcessingOutput) -> @location(0) vec4<f32> {
     let pos = in.tex_coords;
     let depth_sample = textureSample(depth_img, depth_img_s, pos);
-    let depth = linearize_depth(depth_sample, 0.1, 10000.0);
+    let depth = linearize_depth(1. - depth_sample, 0.1, 10000.0);
     let color = textureSample(prev_img, prev_img_s, pos).rgb;
 
     return vec4<f32>(apply_effects(pos, color, depth), 1.0);

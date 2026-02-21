@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
 use crate::{
-    FAR_PLANE, FOV, NEAR_PLANE,
+    FOV, NEAR_PLANE,
     gpu::{
         buffer_pool::BufferPool,
         projection::{Projection, View},
@@ -163,7 +163,6 @@ impl<'a> Drawer<'a> {
             height,
             FOV,
             NEAR_PLANE,
-            FAR_PLANE,
             View::new(starting_pos, Vec3::X),
         );
 
@@ -432,7 +431,7 @@ impl<'a> Drawer<'a> {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: texture::Texture::DEPTH_FORMAT,
                     depth_write_enabled: true, // Wichtig für Transparenz
-                    depth_compare: wgpu::CompareFunction::Less,
+                    depth_compare: wgpu::CompareFunction::Greater,
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -636,7 +635,7 @@ impl<'a> Drawer<'a> {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
+                        load: wgpu::LoadOp::Clear(0.0),
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

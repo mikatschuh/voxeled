@@ -149,7 +149,6 @@ const WALK_JUMP_SPEED: f32 = 5000.;
 
 pub const FOV: f32 = std::f32::consts::FRAC_PI_3;
 pub const NEAR_PLANE: f32 = 0.1;
-pub const FAR_PLANE: f32 = 10_000.0;
 
 #[inline]
 pub fn update(
