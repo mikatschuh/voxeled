@@ -1,5 +1,5 @@
 const VIEW_DISTANCE: f32 = RENDER_DISTANCE * 32.0;
-const SKY_COLOR: vec3<f32> = vec3(0.005, 0.006, 0.008); // Deep cave void
+const SKY_COLOR: vec3<f32> = vec3(0.1, 0.3, 0.5); // Deep cave void
 const FOG_COLOR_LOW: vec3<f32> = vec3(0.02, 0.025, 0.03);
 const FOG_COLOR_HIGH: vec3<f32> = vec3(0.05, 0.055, 0.06);
 

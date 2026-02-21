@@ -9,7 +9,7 @@ use winit::{
 use crate::{
     cam_controller::CamController, input::Inputs
 };
-use voxine::{ComposeableGenerator, DeltaTimeMeter, Frustum, Generator, Server, Threadpool, physics::{self, Aabb}};
+use voxine::{ComposeableGenerator, DeltaTimeMeter, Frustum, Gen2D, Gen3D, MaterialGenerator, Noise, Server, Threadpool, physics::{self, Aabb}};
 
 // mod collision;
 // mod console;
@@ -48,10 +48,26 @@ fn main() {
 
     let mut threadpool = Threadpool::new(NUM_CPUS.min(num_cpus::get() - 1));
 
-    let seed = 0x6bfb999977f4cd52; //random::get_random(0, u64::MAX);
+    let seed: u64 = 0x6b_fb_99_99_77_f4_cd_52; //random::get_random(0, u64::MAX);
     println!("world seed: {:16x}", seed);
 
-    let mut server = Server::new(ComposeableGenerator::mountains_and_valleys(seed));
+    let mut server = Server::new(ComposeableGenerator::gen_2d(Gen2D {
+        noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
+        octaves: 3,
+        base_height: -1.,
+        x_scale: 5000.,
+        y_scale: 13.,
+        z_scale: 5000.
+    }, Some(MaterialGenerator::new(seed)))
+    + ComposeableGenerator::gen_3d(Gen3D {
+        noise: Noise::new(seed as u32),
+        octaves: 8,
+        x_scale: 100.,
+        y_scale: 100.,
+        z_scale: 100.,
+        exponent: 3.,
+        threshold: 0.2,
+    }, None));
 
     let mut input_event_filter = input::InputEventFilter::new().expect("input event filter");
     let mut frame_number = 0;
@@ -136,14 +152,14 @@ pub const NEAR_PLANE: f32 = 0.1;
 pub const FAR_PLANE: f32 = 10_000.0;
 
 #[inline]
-pub fn update<G: Generator>(
+pub fn update(
     camera: &mut CamController,
     change_mesh: &mut bool,
     toggle_impl: &mut bool,
     inputs: & Inputs,
     drawer: &mut gpu::Drawer<'_>,
-    server: &mut Server<G>,
-    threadpool: &mut Threadpool<G>,
+    server: &mut Server<ComposeableGenerator>,
+    threadpool: &mut Threadpool<ComposeableGenerator>,
 ) {
     if inputs.pause {
         drawer.window.flip_focus()
@@ -159,7 +175,7 @@ pub fn update<G: Generator>(
         let prev_cam_pos = camera.pos();
 
         if inputs.free_cam {
-            camera.toggle_free_cam();
+            // camera.toggle_free_cam();
         }
 
         if let Some(mouse_motion) = inputs.mouse_motion {

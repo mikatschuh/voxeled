@@ -1966,7 +1966,7 @@ dependencies = [
 [[package]]
 name = "voxine"
 version = "0.1.0"
-source = "git+https://github.com/mikatschuh/voxeled-engine#8c8c09abff0658783e24a408969683f67d4b0317"
+source = "git+https://github.com/mikatschuh/voxeled-engine#698accd8d76b3a8ad11a9cd6182ec383413357bf"
 dependencies = [
  "bytemuck",
  "colored",
