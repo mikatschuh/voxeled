@@ -4,8 +4,6 @@ pub struct Projection {
     pub aspect: f32,
     pub fov: f32,
     pub znear: f32,
-
-    pub view: Mat4,
 }
 
 const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols(
@@ -16,29 +14,19 @@ const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols(
 );
 
 impl Projection {
-    pub fn new<F: Into<f32>>(width: u32, height: u32, fov: F, znear: f32, view: View) -> Self {
+    pub fn new<F: Into<f32>>(width: u32, height: u32, fov: F, znear: f32) -> Self {
         let aspect = width as f32 / height as f32;
         let fov = fov.into();
 
-        Self {
-            aspect,
-            fov,
-            znear,
-
-            view: view.calc_matrix(),
-        }
+        Self { aspect, fov, znear }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.aspect = width as f32 / height as f32;
     }
 
-    pub fn update_view(&mut self, view: View) {
-        self.view = view.calc_matrix()
-    }
-
-    pub fn calc_matrix(&self) -> [[f32; 4]; 4] {
-        (proj_matrix(self.fov, self.aspect, self.znear) * self.view).to_cols_array_2d()
+    pub fn calc_matrix(&self, view: View) -> [[f32; 4]; 4] {
+        (proj_matrix(self.fov, self.aspect, self.znear) * view.calc_matrix()).to_cols_array_2d()
     }
 }
 
@@ -55,12 +43,6 @@ fn perspective_reverse_z(fovy: f32, aspect: f32, near: f32) -> Mat4 {
         Vec4::new(0.0, 0.0, 0.0, -1.0),
         Vec4::new(0.0, 0.0, near, 0.0),
     )
-}
-
-pub fn dir_from_angle(yaw: f32, pitch: f32) -> Vec3 {
-    let (sin_pitch, cos_pitch) = pitch.sin_cos();
-    let (sin_yaw, cos_yaw) = yaw.sin_cos();
-    Vec3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize()
 }
 
 pub struct View {

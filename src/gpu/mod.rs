@@ -1,4 +1,3 @@
-use glam::Vec3;
 use texture::Texture;
 use vertex::*;
 use wgpu::util::DeviceExt;
@@ -42,11 +41,6 @@ pub struct Drawer<'a> {
     render_target_bind_group: wgpu::BindGroup,
     render_target_bind_group_layout: wgpu::BindGroupLayout,
 
-    // The window must be declared after the surface so
-    // it gets dropped after it as the surface contains
-    // unsafe references to the window's resources.
-    pub window: window::Window<'a>,
-
     render_pipeline: wgpu::RenderPipeline,
     post_processing_pipeline: wgpu::RenderPipeline,
 
@@ -71,7 +65,6 @@ impl<'a> Drawer<'a> {
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-        starting_pos: Vec3,
     ) -> Drawer<'a> {
         let PhysicalSize { width, height } = window.inner_size();
 
@@ -158,17 +151,10 @@ impl<'a> Drawer<'a> {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let proj = Projection::new(
-            width,
-            height,
-            FOV,
-            NEAR_PLANE,
-            View::new(starting_pos, Vec3::X),
-        );
-
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&proj.calc_matrix()),
+            size: 4 * 3,
+            mapped_at_creation: false,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -314,7 +300,7 @@ impl<'a> Drawer<'a> {
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
-            proj,
+            proj: Projection::new(width, height, FOV, NEAR_PLANE),
 
             max_instances,
             diffuse_bind_group: {
@@ -368,7 +354,6 @@ impl<'a> Drawer<'a> {
                 label: Some("render target bind group"),
             }),
             render_target_texture: render_target,
-            window: window::Window::from(window, true),
             surface,
             queue,
             depth_texture,
@@ -508,19 +493,12 @@ impl<'a> Drawer<'a> {
     /// Eine Methode welche die Fenstergröße anpasst.
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.window.resize(new_size);
-
             let PhysicalSize { width, height } = new_size;
 
             self.config.width = width;
             self.config.height = height;
 
             self.proj.resize(width, height);
-            self.queue.write_buffer(
-                &self.view_proj_buffer,
-                0,
-                bytemuck::cast_slice(&self.proj.calc_matrix()),
-            );
 
             self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config);
             self.depth_texture_bind_group =
@@ -569,12 +547,10 @@ impl<'a> Drawer<'a> {
 
     /// Eine Funktion um den Status Quo zu verändern.
     pub fn update_view(&mut self, view: View) {
-        self.proj.update_view(view);
-
         self.queue.write_buffer(
             &self.view_proj_buffer,
             0,
-            bytemuck::cast_slice(&self.proj.calc_matrix()),
+            bytemuck::cast_slice(&self.proj.calc_matrix(view)),
         );
     }
 

@@ -34,9 +34,11 @@ impl<'a> Window<'a> {
             window,
         }
     }
+
     pub fn focused(&self) -> bool {
         self.focused
     }
+
     /// Eine Methode die den Focus verstellt
     pub fn set_focus(&mut self, focused: bool) {
         if focused {
@@ -52,6 +54,7 @@ impl<'a> Window<'a> {
         }
         self.focused = focused;
     }
+
     /// Eine Methode die den GrabMode flipped.
     pub fn flip_focus(&mut self) {
         match self.focused {
@@ -76,10 +79,12 @@ impl<'a> Window<'a> {
         self.aspect_ratio = new_size.width as f32 / new_size.height as f32;
         self.size = new_size;
     }
+
     /// Wrapper für winit::window::Window::id().
     pub fn id(&self) -> WindowId {
         self.window.id()
     }
+
     /// Wrapper für winit::window::Window::request_redraw().
     pub fn request_redraw(&self) {
         self.window.request_redraw()
