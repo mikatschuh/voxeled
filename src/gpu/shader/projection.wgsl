@@ -1,49 +1,39 @@
 struct CameraUniform {
-    view_proj: mat4x4<f32>,
+    view_proj: mat4x4<f32>
 };
+struct ChunkMetadata {
+    pos: vec3<i32>,
+    lod: u32
+}
 
 @group(0) @binding(0) var tex_array: texture_2d_array<f32>;
 @group(0) @binding(1) var smp: sampler;
 
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
-@group(2) @binding(0) var<uniform> orientation: u32;
+@group(2) @binding(0) var<uniform> chunk_metadata: ChunkMetadata;
 
 struct VertexInput {
     @location(0) kind: u32
 }
 struct InstanceInput {
-    @location(2) position: vec3<i32>,
-    @location(3) kind: u32,
+    @location(1) kind: u32
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
-    @location(1) texture_index: u32, // contains the texture index
-    @location(2) height: f32,
-    @location(3) lod_level: u32,
+    @interpolate(flat) @location(1) texture_index: u32, // contains the texture index
+    @interpolate(flat) @location(2) orientation: u32,
 }
 
 @vertex fn vs_main(
     model: VertexInput,
     instance: InstanceInput,
 ) -> VertexOutput {
-    var out: VertexOutput;
-    out.texture_index = instance.kind & 0xFFFF;
-    let lod_level = instance.kind >> 16;
-
-    if model.kind == 0u {
-        out.tex_coords = vec2(1.0, 0.0);
-    } else if model.kind == 1u {
-        out.tex_coords = vec2(0.0, 0.0);
-    } else if model.kind == 2u {
-        out.tex_coords = vec2(0.0, 1.0);
-    } else {
-        out.tex_coords = vec2(1.0, 1.0);
-    }
-
     var vertex_position: vec3<f32>;
+
+    let orientation = instance.kind >> 29u;
     if orientation == 0u {                            // 0
         if model.kind == 0u {
             vertex_position = vec3(0.0, 0.0, 1.0);
@@ -105,12 +95,31 @@ struct VertexOutput {
             vertex_position = vec3(1.0, 1.0, 1.0);
         }
     }
-    vertex_position *= f32(1u << (lod_level));
+    var out: VertexOutput;
 
-    out.lod_level = lod_level;
-    out.height = f32(instance.position.y);
+    if model.kind == 0u {
+        out.tex_coords = vec2(1.0, 0.0);
+    } else if model.kind == 1u {
+        out.tex_coords = vec2(0.0, 0.0);
+    } else if model.kind == 2u {
+        out.tex_coords = vec2(0.0, 1.0);
+    } else {
+        out.tex_coords = vec2(1.0, 1.0);
+    }
+
+    out.orientation = orientation;
+    out.texture_index = instance.kind & 16383;
     out.clip_position = camera.view_proj * vec4<f32>(
-        vec3<f32>(f32(instance.position.x), f32(instance.position.y), f32(instance.position.z)) + vertex_position,
+        (vec3<f32>(
+            f32(chunk_metadata.pos.x),
+            f32(chunk_metadata.pos.y),
+            f32(chunk_metadata.pos.z)
+        ) * 32
+        + vec3<f32>(
+            f32((instance.kind >> 24) & 31u),
+            f32((instance.kind >> 19) & 31u),
+            f32((instance.kind >> 14) & 31u)
+        ) + vertex_position) * f32(1u << (chunk_metadata.lod)),
         1.0
     );
     return out;
@@ -123,17 +132,17 @@ struct VertexOutput {
         discard;
     }
     var shading: f32;
-    if orientation == 0 {
+    if in.orientation == 0u {
         shading = 0.8;
-    } else if orientation == 1 {
+    } else if in.orientation == 1u {
         shading = 0.3;
-    } else if orientation == 2 {
+    } else if in.orientation == 2u {
         shading = 0.5;
-    } else if orientation == 3 {
+    } else if in.orientation == 3u {
         shading = 0.5;
-    } else if orientation == 4 {
+    } else if in.orientation == 4u {
         shading = 0.5;
-    } else if orientation == 5 {
+    } else if in.orientation == 5u {
         shading = 0.5;
     }
 
