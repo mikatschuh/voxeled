@@ -7,7 +7,7 @@ use glam::Vec3;
 use winit::{
     dpi::PhysicalPosition,
     event::{DeviceEvent, Event, KeyEvent, MouseScrollDelta, WindowEvent},
-    keyboard::{Key, KeyCode, PhysicalKey},
+    keyboard::{KeyCode, PhysicalKey},
     window::WindowId,
 };
 
@@ -314,10 +314,6 @@ impl InputEventFilter {
                     let is_pressed = event.state.is_pressed();
 
                     match key_code {
-                        KeyCode::Escape if is_pressed => {
-                            self.inputs.pause = true;
-                            return true;
-                        }
                         KeyCode::KeyR if is_pressed => {
                             self.inputs.remesh = true;
                             return true;

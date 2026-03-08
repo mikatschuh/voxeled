@@ -55,25 +55,6 @@ impl<'a> Window<'a> {
         self.focused = focused;
     }
 
-    /// Eine Methode die den GrabMode flipped.
-    pub fn flip_focus(&mut self) {
-        match self.focused {
-            true => {
-                self.window.set_cursor_visible(true);
-                self.window
-                    .set_cursor_grab(window::CursorGrabMode::None)
-                    .unwrap()
-            }
-            false => {
-                self.window.set_cursor_visible(false);
-                self.window
-                    .set_cursor_grab(window::CursorGrabMode::Locked)
-                    .unwrap()
-            }
-        }
-        self.focused = !self.focused
-    }
-
     /// Setzt die Fenstergröße auf einen neuen Wert.
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.aspect_ratio = new_size.width as f32 / new_size.height as f32;

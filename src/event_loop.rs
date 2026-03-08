@@ -55,7 +55,7 @@ pub fn make_window<E: EventHandler<'static>>() {
                                 }
                             },
                             WindowEvent::Focused(focused) => {
-                                window.flip_focus();
+                                window.set_focus(focused);
                                 event_handler.set_window_focus(focused)
                             }
                             WindowEvent::CloseRequested => control_flow.exit(),

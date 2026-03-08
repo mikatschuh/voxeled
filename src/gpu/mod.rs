@@ -630,9 +630,9 @@ impl<'a> Gpu<'a> {
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            frustum.flood_fill(&mut self.frustum_allocs);
+            let chunks = frustum.flood_fill(&mut self.frustum_allocs, &self.mesh_map);
 
-            for chunk in self.frustum_allocs.chunks.iter() {
+            for chunk in chunks {
                 let Some((size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
                     continue;
                 };

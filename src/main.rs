@@ -7,8 +7,7 @@ use crate::{
     input::InputEventFilter,
 };
 use voxine::{
-    ComposableGenerator, DeltaTimeMeter, Frustum, Gen2D, Gen3D, MaterialGenerator, Noise,
-    SphereConfig, cam_controller::CamController,
+    ComposableGenerator, DeltaTimeMeter, Frustum, SphereConfig, cam_controller::CamController,
 };
 
 // mod collision;
@@ -128,6 +127,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
 
         if inputs.pause {
             self.paused = !self.paused;
+            window.set_focus(!self.paused);
         }
         if inputs.remesh {
             self.change_mesh = !self.change_mesh;
@@ -224,7 +224,9 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
         self.gpu.reconfigure();
     }
 
-    fn set_window_focus(&mut self, _: bool) {}
+    fn set_window_focus(&mut self, focused: bool) {
+        self.paused = !focused
+    }
 
     fn resize_window(&mut self, new_size: PhysicalSize<u32>) {
         self.gpu.resize(new_size);
