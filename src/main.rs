@@ -25,7 +25,7 @@ const NUM_CPUS: usize = 3;
 const STARTING_POS: Vec3 = Vec3::new(0., 0., 0.);
 
 const FULL_DETAL_DISTANCE: f32 = 12.;
-const RENDER_DISTANCE: f32 = 100. / 32.;
+const RENDER_DISTANCE: f32 = 1000. / 32.;
 const MAX_CHUNKS: usize = 5000;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
@@ -69,7 +69,8 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                     max_chunks: MAX_CHUNKS,
                 },
                 CamController::new(STARTING_POS, 0., 0., true, delta_time.reader()),
-                ComposableGenerator::gen_2d(
+                ComposableGenerator::mountains_and_valleys(seed),
+                /*ComposableGenerator::gen_2d(
                     Gen2D {
                         noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
                         octaves: 3,
@@ -90,7 +91,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                         threshold: 0.2,
                     },
                     None,
-                ),
+                ), */
             )
             .unwrap(),
             gpu: pollster::block_on(gpu::Gpu::connect_to(
@@ -122,6 +123,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
         window: &mut Window<'static>,
         control_flow: &EventLoopWindowTarget<()>,
     ) {
+        self.delta_time.update();
         let inputs = self.input_event_filter.get();
 
         if inputs.pause {
@@ -163,12 +165,26 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                     }
                 }
 
-                camera.advance_pos(|_start_pos, intended_pos| intended_pos);
+                let dt = camera.delta_time();
+                if dt.is_finite() && dt > 0.0 {
+                    camera.advance_pos(|_start_pos, intended_pos| intended_pos);
+                }
 
                 if inputs.status {
+                    let dt = camera.delta_time();
+                    let fps = if dt.is_finite() && dt > 0.0 {
+                        1.0 / dt
+                    } else {
+                        0.0
+                    };
+                    let vel_kmh = if dt.is_finite() && dt > 0.0 {
+                        (camera.pos() - prev_cam_pos).length() / dt / 3.6
+                    } else {
+                        0.0
+                    };
                     println!(
                         "FPS: {}\tpos: [{}]\tvel: {:+12.5} kmh",
-                        1. / camera.delta_time(),
+                        fps,
                         camera
                             .pos()
                             .to_array()
@@ -176,7 +192,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                             .into_iter()
                             .reduce(|acc, s| acc + ", " + &s)
                             .unwrap(),
-                        (camera.pos() - prev_cam_pos).length() / camera.delta_time() / 3.6
+                        vel_kmh
                     );
                 }
 
@@ -202,7 +218,6 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
 
         self.input_event_filter.frame_done();
         self.frames_drawn += 1;
-        self.delta_time.update();
     }
 
     fn reconfigure(&mut self) {

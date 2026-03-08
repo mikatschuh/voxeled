@@ -309,7 +309,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -1982,7 +1982,7 @@ dependencies = [
 [[package]]
 name = "voxine"
 version = "0.1.0"
-source = "git+https://github.com/mikatschuh/voxeled-engine#5dc082e48a92bf1ba046632fafedd4961eea9948"
+source = "git+https://github.com/mikatschuh/voxeled-engine#f4015836955428a33bebd65c0f0afc7feb634251"
 dependencies = [
  "bytemuck",
  "colored",
@@ -2379,7 +2379,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

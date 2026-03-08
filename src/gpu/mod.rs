@@ -636,6 +636,9 @@ impl<'a> Gpu<'a> {
                 let Some((size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
                     continue;
                 };
+                if size == 0 {
+                    continue;
+                }
 
                 self.queue
                     .write_buffer(&self.chunk_metadata, 0, &chunk.bytes());
