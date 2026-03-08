@@ -3,11 +3,9 @@
 ## Project Structure & Module Organization
 - `src/main.rs` wires the winit event loop, camera, GPU drawer, and server.
 - Rendering lives under `src/gpu/` (camera controllers, shaders, textures like `*.png`, mesh/buffer helpers).
-- World logic sits in `src/server/` (voxel types, chunks, world generation).
-- Input and console systems are `src/input/` and `src/console/`; threading utilities are in `src/threadpool.rs`.
-- Utility modules include `src/time.rs`.
+- World logic and alot of utilities (the engine) sits in the seperate `voxine` package (voxel types, chunks, world generation).
+- Input is in `src/input/`.
 - A sweep algorithm for physics is implemented in `collision.rs`. 
-- Tests are sperate `test.rs` files with `#[cfg(test)]` in the respected module.
 
 ## Build, Test, and Development Commands
 - `cargo run` — launch the client with the default window and renderer.
@@ -20,7 +18,7 @@
 ## Coding Style & Naming Conventions
 - Follow rustfmt defaults (4-space indent, trailing commas, ordered `use` blocks).
 - Modules/files use `snake_case`; types use `UpperCamelCase`; functions/locals use `snake_case`.
-- Prefer small, focused modules under existing domains (`gpu`, `server`, `input`) rather than new top-level trees.
+- Prefer small, focused modules under existing domains (`gpu`, `input`) rather than new top-level trees.
 - Keep GPU resources (textures/shaders) close to their consumers in `src/gpu/`.
 
 ## Testing Guidelines

@@ -7,7 +7,7 @@ use winit::{
 
 use crate::gpu::window::Window;
 
-pub trait EventHandler<'a>: Drop {
+pub trait EventHandler<'a> {
     fn new(window: &'a winit::window::Window) -> Self;
 
     fn could_handle(
@@ -24,20 +24,23 @@ pub trait EventHandler<'a>: Drop {
     fn resize_window(&mut self, new_size: PhysicalSize<u32>);
 }
 
-pub fn make_window<E: for<'a> EventHandler<'a>>() {
+pub fn make_window<E: EventHandler<'static>>() {
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
-        .with_title("Voxeled")
-        .with_inner_size(PhysicalSize::<u32> {
-            width: 2000,
-            height: 2000,
-        }) // this is the window configuration
-        .build(&event_loop)
-        .unwrap();
+    let window = Box::new(
+        WindowBuilder::new()
+            .with_title("Voxeled")
+            .with_inner_size(PhysicalSize::<u32> {
+                width: 2000,
+                height: 2000,
+            }) // this is the window configuration
+            .build(&event_loop)
+            .unwrap(),
+    );
+    let window: &'static winit::window::Window = Box::leak(window);
 
-    let mut event_handler = E::new(&window);
+    let mut event_handler = E::new(window);
 
-    let mut window = Window::from(&window, true);
+    let mut window = Window::from(window, true);
 
     event_loop // main event loop
         .run(|event, control_flow| {

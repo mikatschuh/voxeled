@@ -1,18 +1,20 @@
+use std::{collections::HashMap, time::Instant};
+
 use texture::Texture;
 use vertex::*;
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
 use crate::{
-    FOV, NEAR_PLANE,
+    FOV, MAX_CHUNKS, NEAR_PLANE,
     gpu::{
-        buffer_pool::BufferPool,
+        gpu_allocator::GPUSlotAllocator,
         projection::{Projection, View},
     },
 };
 
 // pub mod exotic_cameras;
-mod buffer_pool;
+mod gpu_allocator;
 pub mod projection;
 mod shader;
 mod texture;
@@ -21,11 +23,11 @@ pub mod vertex;
 pub mod window;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
-pub struct Drawer<'a> {
+pub struct Gpu<'a> {
     // bind groups:
     diffuse_bind_group: wgpu::BindGroup,
     camera_bind_group: wgpu::BindGroup,
-    orientation_bind_group_layout: wgpu::BindGroupLayout,
+    chunk_bind_group_layout: wgpu::BindGroupLayout,
 
     // rendering stuff:
     surface: wgpu::Surface<'a>,
@@ -47,25 +49,25 @@ pub struct Drawer<'a> {
     // camera
     proj: Projection,
     view_proj_buffer: wgpu::Buffer,
-    orientation_buffers: [wgpu::Buffer; 6],
+    chunk_metadata: wgpu::Buffer, // stores chunk metadata
 
     // Asset things:
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
 
-    max_instances: usize,
-    mesh: voxine::Mesh,
-    instance_buffer_pool: BufferPool,
+    gpu_allocator: gpu_allocator::GPUSlotAllocator,
+    mesh_map: HashMap<voxine::ChunkID, (u64, gpu_allocator::SlotID)>,
+    frustum_allocs: voxine::FrustumAllocations,
 }
 
-impl<'a> Drawer<'a> {
+impl<'a> Gpu<'a> {
     /// Diese Funktion erstellt einen Drawer der mit dem aktuellen Fenster verbunden ist.
     /// Außerdem nimmt sie einen PresentMode entgegen mit dem auf das Fenster gezeichnet werden soll.
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
-    ) -> Drawer<'a> {
+    ) -> Gpu<'a> {
         let PhysicalSize { width, height } = window.inner_size();
 
         // The instance is a handle to our GPU
@@ -158,38 +160,13 @@ impl<'a> Drawer<'a> {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let orientation_buffers = [
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Orientation Buffer"),
-                contents: bytemuck::cast_slice(&[0]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Orientation Buffer"),
-                contents: bytemuck::cast_slice(&[1]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Orientation Buffer"),
-                contents: bytemuck::cast_slice(&[2]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Orientation Buffer"),
-                contents: bytemuck::cast_slice(&[3]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Orientation Buffer"),
-                contents: bytemuck::cast_slice(&[4]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Orientation Buffer"),
-                contents: bytemuck::cast_slice(&[5]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-        ];
+        let chunk_metadata = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Chunk-Metadata Buffer"),
+            size: 4 * 4,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
@@ -204,7 +181,7 @@ impl<'a> Drawer<'a> {
                 }],
                 label: Some("Camera Bind Group Layout"),
             });
-        let orientation_bind_group_layout =
+        let chunk_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -291,18 +268,16 @@ impl<'a> Drawer<'a> {
             contents: bytemuck::cast_slice(&Vertex::indices()),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let max_buffer_size = 268435456; //device.limits().max_buffer_size as usize;
-        let max_instances = 268435456 / size_of::<voxine::Instance>();
-
-        let mesh = voxine::Mesh::with_capacity(max_buffer_size * 6);
-        let instance_buffer_pool = BufferPool::new(&device, 6, max_buffer_size);
 
         let render_target = Texture::create_rendering_target(&device, &config);
 
         Self {
             proj: Projection::new(width, height, FOV, NEAR_PLANE),
 
-            max_instances,
+            mesh_map: HashMap::with_capacity(10_000),
+            gpu_allocator: GPUSlotAllocator::new(&device, 393_216, 10_000),
+            frustum_allocs: voxine::FrustumAllocations::default(MAX_CHUNKS),
+
             diffuse_bind_group: {
                 let texture = Texture::from_images(
                     &device,
@@ -366,7 +341,7 @@ impl<'a> Drawer<'a> {
                         bind_group_layouts: &[
                             &texture_bind_group_layout,
                             &camera_bind_group_layout,
-                            &orientation_bind_group_layout,
+                            &chunk_bind_group_layout,
                         ],
                         push_constant_ranges: &[wgpu::PushConstantRange {
                             stages: wgpu::ShaderStages::VERTEX,
@@ -478,15 +453,13 @@ impl<'a> Drawer<'a> {
             ),
             depth_texture_bind_group_layout,
             render_target_bind_group_layout,
-            orientation_bind_group_layout,
+            chunk_bind_group_layout,
             device,
             config,
             view_proj_buffer: camera_buffer,
-            orientation_buffers,
+            chunk_metadata,
             vertex_buffer,
             index_buffer,
-            mesh,
-            instance_buffer_pool,
             num_indices: 6,
         }
     }
@@ -554,15 +527,40 @@ impl<'a> Drawer<'a> {
         );
     }
 
-    pub fn update_mesh(&mut self, mesh: voxine::Mesh) {
-        self.mesh = mesh;
+    pub fn update_mesh(
+        &mut self,
+        mesh_recv: &mut voxine::MpscReceiver<(voxine::ChunkID, voxine::Mesh)>,
+        allowed_time: f64,
+    ) {
+        let now = Instant::now();
+        while let Ok((chunk_id, mesh)) = mesh_recv.pop() {
+            if let Some((_, slot_id)) = self.mesh_map.get(&chunk_id) {
+                self.gpu_allocator
+                    .write_slot(&self.queue, *slot_id, mesh.bytes());
+
+                self.mesh_map.get_mut(&chunk_id).unwrap().0 = mesh.len_in_bytes() as u64;
+            } else {
+                let slot_id = self
+                    .gpu_allocator
+                    .allocate_slot(&self.device, mesh.len_in_bytes());
+
+                self.mesh_map
+                    .insert(chunk_id, (mesh.len_in_bytes() as u64, slot_id));
+
+                self.gpu_allocator
+                    .write_slot(&self.queue, slot_id, mesh.bytes());
+            }
+            if now.elapsed().as_secs_f64() >= allowed_time {
+                return;
+            }
+        }
     }
 
     /// Eine Funktion die den Drawer einen neuen Frame zeichnen lässt.
     /// # Errors
     ///
-    pub fn draw(&mut self, control_flow: &EventLoopWindowTarget<()>) {
-        match self.try_draw() {
+    pub fn draw(&mut self, frustum: voxine::Frustum, control_flow: &EventLoopWindowTarget<()>) {
+        match self.try_draw(frustum) {
             Ok(_) => {}
             // Reconfigure the surface if it's lost or outdated
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => self.reconfigure(),
@@ -579,7 +577,8 @@ impl<'a> Drawer<'a> {
             Err(wgpu::SurfaceError::Other) => log::warn!("generic error while drawing"),
         }
     }
-    fn try_draw(&mut self) -> Result<(), wgpu::SurfaceError> {
+
+    fn try_draw(&mut self, frustum: voxine::Frustum) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
@@ -627,41 +626,33 @@ impl<'a> Drawer<'a> {
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            self.instance_buffer_pool.new_session();
-            for (orientation, instances) in [
-                (0, &self.mesh.nx),
-                (1, &self.mesh.px),
-                (2, &self.mesh.ny),
-                (3, &self.mesh.py),
-                (4, &self.mesh.nz),
-                (5, &self.mesh.pz),
-            ]
-            .into_iter()
-            {
+            frustum.flood_fill(&mut self.frustum_allocs);
+
+            for chunk in self.frustum_allocs.chunks.iter() {
+                let Some((size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
+                    continue;
+                };
+
+                self.queue
+                    .write_buffer(&self.chunk_metadata, 0, &chunk.bytes());
+
                 render_pass.set_bind_group(
                     2,
                     &self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &self.orientation_bind_group_layout,
+                        layout: &self.chunk_bind_group_layout,
                         entries: &[wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: self.orientation_buffers[orientation].as_entire_binding(),
+                            resource: self.chunk_metadata.as_entire_binding(),
                         }],
-                        label: Some("Orientation Buffer Bind Group"),
+                        label: Some("Chunk-Metadata Buffer Bind Group"),
                     }),
                     &[],
                 );
-                for chunk in instances.chunks(self.max_instances) {
-                    render_pass.set_vertex_buffer(
-                        1,
-                        self.instance_buffer_pool.use_buffer(
-                            &self.device,
-                            &self.queue,
-                            bytemuck::cast_slice(chunk),
-                        ),
-                    );
 
-                    render_pass.draw_indexed(0..self.num_indices, 0, 0..chunk.len() as _);
-                }
+                let (buffer, offset) = self.gpu_allocator.buffer_and_offset(slot_id);
+                render_pass.set_vertex_buffer(1, buffer.slice(offset..offset + size));
+
+                render_pass.draw_indexed(0..self.num_indices, 0, 0..(size as u32 >> 4));
             }
         }
 

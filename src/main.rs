@@ -42,9 +42,8 @@ fn main() {
 struct EventHandler<'a> {
     delta_time: DeltaTimeMeter,
 
-    drawer: gpu::Drawer<'a>,
+    gpu: gpu::Gpu<'a>,
 
-    seed: u64,
     engine_channel: voxine::RenderThreadChannels,
 
     input_event_filter: InputEventFilter,
@@ -54,15 +53,14 @@ struct EventHandler<'a> {
     paused: bool,
 }
 
-impl<'a> event_loop::EventHandler<'a> for EventHandler<'a> {
-    fn new(window: &'a winit::window::Window) -> Self {
+impl event_loop::EventHandler<'static> for EventHandler<'static> {
+    fn new(window: &'static winit::window::Window) -> Self {
         let delta_time = DeltaTimeMeter::new();
 
         let seed: u64 = 0x6b_fb_99_99_77_f4_cd_52; //random::get_random(0, u64::MAX);
         println!("world seed: {:16x}", seed);
 
         Self {
-            seed,
             engine_channel: voxine::create_engine_thread(
                 NUM_CPUS,
                 SphereConfig {
@@ -95,7 +93,7 @@ impl<'a> event_loop::EventHandler<'a> for EventHandler<'a> {
                 ),
             )
             .unwrap(),
-            drawer: pollster::block_on(gpu::Drawer::connect_to(
+            gpu: pollster::block_on(gpu::Gpu::connect_to(
                 &window,
                 wgpu::PresentMode::AutoNoVsync,
             )),
@@ -121,27 +119,24 @@ impl<'a> event_loop::EventHandler<'a> for EventHandler<'a> {
 
     fn generate_frame(
         &mut self,
-        window: &mut Window<'a>,
+        window: &mut Window<'static>,
         control_flow: &EventLoopWindowTarget<()>,
     ) {
         let inputs = self.input_event_filter.get();
 
-        if self.frames_drawn == 0 {
-            self.drawer.draw(control_flow)
-        } else {
-            if inputs.pause {
-                self.paused = !self.paused;
-            }
-            if inputs.remesh {
-                self.change_mesh = !self.change_mesh;
-            }
-            if inputs.toggle_impl {
-                self.toggle_impl = !self.toggle_impl;
-            }
+        if inputs.pause {
+            self.paused = !self.paused;
+        }
+        if inputs.remesh {
+            self.change_mesh = !self.change_mesh;
+        }
+        if inputs.toggle_impl {
+            self.toggle_impl = !self.toggle_impl;
+        }
 
+        let frustum = {
+            let mut camera = self.engine_channel.player.write();
             if !self.paused && window.focused() {
-                let camera = self.engine_channel.player.write();
-
                 let prev_cam_pos = camera.pos();
 
                 if inputs.free_cam {
@@ -168,7 +163,7 @@ impl<'a> event_loop::EventHandler<'a> for EventHandler<'a> {
                     }
                 }
 
-                camera.advance_pos(|start_pos, intended_pos| intended_pos);
+                camera.advance_pos(|_start_pos, intended_pos| intended_pos);
 
                 if inputs.status {
                     println!(
@@ -185,29 +180,25 @@ impl<'a> event_loop::EventHandler<'a> for EventHandler<'a> {
                     );
                 }
 
-                self.drawer
-                    .update_view(View::new(camera.pos(), camera.dir()));
+                self.gpu.update_view(View::new(camera.pos(), camera.dir()));
             }
-
-            if self.change_mesh {
-                self.drawer.update_mesh();
-
-                self.drawer.update_mesh(server.get_mesh(
-                    Frustum {
-                        cam_pos: self.camera.pos(),
-                        direction: self.camera.dir(),
-                        fov: FOV,
-                        aspect_ratio: drawer.window.aspect_ratio,
-                        max_chunks: MAX_CHUNKS,
-                        max_distance: RENDER_DISTANCE,
-                        full_detail_range: FULL_DETAL_DISTANCE,
-                    },
-                    *toggle_impl,
-                ));
+            Frustum {
+                cam_pos: camera.pos(),
+                direction: camera.dir(),
+                fov: FOV,
+                aspect_ratio: window.aspect_ratio,
+                max_chunks: MAX_CHUNKS,
+                max_distance: RENDER_DISTANCE,
+                full_detail_range: FULL_DETAL_DISTANCE,
             }
+        };
 
-            self.drawer.draw(control_flow);
+        if self.change_mesh {
+            self.gpu
+                .update_mesh(&mut self.engine_channel.mesh_updates, 0.01);
         }
+
+        self.gpu.draw(frustum, control_flow);
 
         self.input_event_filter.frame_done();
         self.frames_drawn += 1;
@@ -215,13 +206,13 @@ impl<'a> event_loop::EventHandler<'a> for EventHandler<'a> {
     }
 
     fn reconfigure(&mut self) {
-        self.drawer.reconfigure();
+        self.gpu.reconfigure();
     }
 
     fn set_window_focus(&mut self, _: bool) {}
 
     fn resize_window(&mut self, new_size: PhysicalSize<u32>) {
-        self.drawer.resize(new_size);
+        self.gpu.resize(new_size);
     }
 }
 

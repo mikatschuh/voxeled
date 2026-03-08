@@ -12,7 +12,7 @@ impl Texture {
         match self {
             CrackedStone => include_bytes!("cracked_stone.png"),
             Stone => include_bytes!("normal_stone.png"),
-            Dirt => include_bytes!("dirt.png"),
+            Dirt => include_bytes!("deprecated_dirt.png"),
             Debug => include_bytes!("debug_occlusion.png"),
         }
     }
