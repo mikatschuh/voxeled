@@ -25,7 +25,7 @@ const NUM_CPUS: usize = 3;
 const STARTING_POS: Vec3 = Vec3::new(0., 0., 0.);
 
 const FULL_DETAL_DISTANCE: f32 = 12.;
-const RENDER_DISTANCE: f32 = 20_000. / 32.;
+const RENDER_DISTANCE: f32 = 100. / 32.;
 const MAX_CHUNKS: usize = 5000;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;

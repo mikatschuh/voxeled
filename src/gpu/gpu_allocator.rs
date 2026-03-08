@@ -41,21 +41,26 @@ impl GPUSlotAllocator {
             .push((slot_id.1, slot_id.2));
     }
 
-    pub fn write_slot(&mut self, queue: &Queue, slot_id: SlotID, data: &[u8]) {
-        let class = &self.size_classes[slot_id.0];
+    /// Writes `data` into `slot_id`.
+    /// If the slot is too small, data is moved to a new fitting slot and the old slot is freed.
+    /// Returns the slot that now owns the data.
+    pub fn write_slot(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        slot_id: SlotID,
+        data: &[u8],
+    ) -> SlotID {
+        let current_slot_size = self.slot_size(slot_id);
+        if data.len() > current_slot_size {
+            let new_slot = self.allocate_slot(device, data.len());
+            self.write_to_slot(queue, new_slot, data);
+            self.deallocate_slot(slot_id);
+            return new_slot;
+        }
 
-        assert!(
-            data.len() <= class.slot_size,
-            "slot overflow: data size {} > slot size {}",
-            data.len(),
-            class.slot_size
-        );
-
-        queue.write_buffer(
-            &class.buffer_pool[slot_id.1],
-            (slot_id.2 * class.slot_size) as u64,
-            data,
-        );
+        self.write_to_slot(queue, slot_id, data);
+        slot_id
     }
 
     /// Allocates a slot for at least `required_size` bytes.
@@ -144,5 +149,16 @@ impl GPUSlotAllocator {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         })
+    }
+
+    fn write_to_slot(&self, queue: &Queue, slot_id: SlotID, data: &[u8]) {
+        let class = &self.size_classes[slot_id.0];
+        debug_assert!(data.len() <= class.slot_size);
+
+        queue.write_buffer(
+            &class.buffer_pool[slot_id.1],
+            (slot_id.2 * class.slot_size) as u64,
+            data,
+        );
     }
 }

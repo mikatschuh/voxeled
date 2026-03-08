@@ -56,7 +56,7 @@ pub struct Gpu<'a> {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
 
-    gpu_allocator: gpu_allocator::GPUSlotAllocator,
+    vram_cache: gpu_allocator::GPUSlotAllocator,
     mesh_map: HashMap<voxine::ChunkID, (u64, gpu_allocator::SlotID)>,
     frustum_allocs: voxine::FrustumAllocations,
 }
@@ -155,7 +155,7 @@ impl<'a> Gpu<'a> {
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Buffer"),
-            size: 4 * 3,
+            size: std::mem::size_of::<[[f32; 4]; 4]>() as u64,
             mapped_at_creation: false,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -275,7 +275,7 @@ impl<'a> Gpu<'a> {
             proj: Projection::new(width, height, FOV, NEAR_PLANE),
 
             mesh_map: HashMap::with_capacity(10_000),
-            gpu_allocator: GPUSlotAllocator::new(&device, 393_216, 10_000),
+            vram_cache: GPUSlotAllocator::new(&device, 393_216, 10_000),
             frustum_allocs: voxine::FrustumAllocations::default(MAX_CHUNKS),
 
             diffuse_bind_group: {
@@ -534,21 +534,25 @@ impl<'a> Gpu<'a> {
     ) {
         let now = Instant::now();
         while let Ok((chunk_id, mesh)) = mesh_recv.pop() {
-            if let Some((_, slot_id)) = self.mesh_map.get(&chunk_id) {
-                self.gpu_allocator
-                    .write_slot(&self.queue, *slot_id, mesh.bytes());
-
-                self.mesh_map.get_mut(&chunk_id).unwrap().0 = mesh.len_in_bytes() as u64;
+            if let Some((slot_size, slot_id)) = self.mesh_map.get_mut(&chunk_id) {
+                let updated_slot =
+                    self.vram_cache
+                        .write_slot(&self.device, &self.queue, *slot_id, mesh.bytes());
+                *slot_id = updated_slot;
+                *slot_size = mesh.len_in_bytes() as u64;
             } else {
-                let slot_id = self
-                    .gpu_allocator
+                let allocated_slot = self
+                    .vram_cache
                     .allocate_slot(&self.device, mesh.len_in_bytes());
+                let updated_slot = self.vram_cache.write_slot(
+                    &self.device,
+                    &self.queue,
+                    allocated_slot,
+                    mesh.bytes(),
+                );
 
                 self.mesh_map
-                    .insert(chunk_id, (mesh.len_in_bytes() as u64, slot_id));
-
-                self.gpu_allocator
-                    .write_slot(&self.queue, slot_id, mesh.bytes());
+                    .insert(chunk_id, (mesh.len_in_bytes() as u64, updated_slot));
             }
             if now.elapsed().as_secs_f64() >= allowed_time {
                 return;
@@ -649,7 +653,7 @@ impl<'a> Gpu<'a> {
                     &[],
                 );
 
-                let (buffer, offset) = self.gpu_allocator.buffer_and_offset(slot_id);
+                let (buffer, offset) = self.vram_cache.buffer_and_offset(slot_id);
                 render_pass.set_vertex_buffer(1, buffer.slice(offset..offset + size));
 
                 render_pass.draw_indexed(0..self.num_indices, 0, 0..(size as u32 >> 4));
