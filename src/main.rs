@@ -7,7 +7,8 @@ use crate::{
     input::InputEventFilter,
 };
 use voxine::{
-    ComposableGenerator, DeltaTimeMeter, Frustum, SphereConfig, cam_controller::CamController,
+    ComposableGenerator, DeltaTimeMeter, Frustum, Gen2D, Gen3D, MaterialGenerator, Noise,
+    SphereConfig, cam_controller::CamController,
 };
 
 // mod collision;
@@ -68,8 +69,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                     max_chunks: MAX_CHUNKS,
                 },
                 CamController::new(STARTING_POS, 0., 0., true, delta_time.reader()),
-                ComposableGenerator::mountains_and_valleys(seed),
-                /*ComposableGenerator::gen_2d(
+                ComposableGenerator::gen_2d(
                     Gen2D {
                         noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
                         octaves: 3,
@@ -90,7 +90,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                         threshold: 0.2,
                     },
                     None,
-                ), */
+                ),
             )
             .unwrap(),
             gpu: pollster::block_on(gpu::Gpu::connect_to(

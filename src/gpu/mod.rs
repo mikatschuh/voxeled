@@ -27,7 +27,6 @@ pub struct Gpu<'a> {
     // bind groups:
     diffuse_bind_group: wgpu::BindGroup,
     camera_bind_group: wgpu::BindGroup,
-    chunk_bind_group_layout: wgpu::BindGroupLayout,
 
     // rendering stuff:
     surface: wgpu::Surface<'a>,
@@ -49,7 +48,6 @@ pub struct Gpu<'a> {
     // camera
     proj: Projection,
     view_proj_buffer: wgpu::Buffer,
-    chunk_metadata: wgpu::Buffer, // stores chunk metadata
 
     // Asset things:
     vertex_buffer: wgpu::Buffer,
@@ -95,7 +93,7 @@ impl<'a> Gpu<'a> {
         let device_descriptor = wgpu::DeviceDescriptor {
             required_features,
             required_limits: wgpu::Limits {
-                max_push_constant_size: 4, // mind. 4, meist 128
+                max_push_constant_size: 16, // chunk metadata = 4 * u32
                 ..Default::default()
             },
             ..Default::default()
@@ -160,13 +158,6 @@ impl<'a> Gpu<'a> {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let chunk_metadata = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Chunk-Metadata Buffer"),
-            size: 4 * 4,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
@@ -180,20 +171,6 @@ impl<'a> Gpu<'a> {
                     count: None,
                 }],
                 label: Some("Camera Bind Group Layout"),
-            });
-        let chunk_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("Orientation Bind Group Layout"),
             });
         let render_target_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -341,11 +318,10 @@ impl<'a> Gpu<'a> {
                         bind_group_layouts: &[
                             &texture_bind_group_layout,
                             &camera_bind_group_layout,
-                            &chunk_bind_group_layout,
                         ],
                         push_constant_ranges: &[wgpu::PushConstantRange {
                             stages: wgpu::ShaderStages::VERTEX,
-                            range: 0..4, // z.B. ein einzelnes u32
+                            range: 0..16,
                         }],
                     }),
                 ),
@@ -453,11 +429,9 @@ impl<'a> Gpu<'a> {
             ),
             depth_texture_bind_group_layout,
             render_target_bind_group_layout,
-            chunk_bind_group_layout,
             device,
             config,
             view_proj_buffer: camera_buffer,
-            chunk_metadata,
             vertex_buffer,
             index_buffer,
             num_indices: 6,
@@ -640,26 +614,13 @@ impl<'a> Gpu<'a> {
                     continue;
                 }
 
-                self.queue
-                    .write_buffer(&self.chunk_metadata, 0, &chunk.bytes());
-
-                render_pass.set_bind_group(
-                    2,
-                    &self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &self.chunk_bind_group_layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: self.chunk_metadata.as_entire_binding(),
-                        }],
-                        label: Some("Chunk-Metadata Buffer Bind Group"),
-                    }),
-                    &[],
-                );
+                let chunk_bytes = chunk.bytes();
+                render_pass.set_push_constants(wgpu::ShaderStages::VERTEX, 0, &chunk_bytes);
 
                 let (buffer, offset) = self.vram_cache.buffer_and_offset(slot_id);
                 render_pass.set_vertex_buffer(1, buffer.slice(offset..offset + size));
 
-                render_pass.draw_indexed(0..self.num_indices, 0, 0..(size as u32 >> 4));
+                render_pass.draw_indexed(0..self.num_indices, 0, 0..(size as u32 >> 2));
             }
         }
 

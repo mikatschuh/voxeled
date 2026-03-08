@@ -2,8 +2,7 @@ struct CameraUniform {
     view_proj: mat4x4<f32>
 };
 struct ChunkMetadata {
-    pos: vec3<i32>,
-    lod: u32
+    pos_lod: vec4<i32>,
 }
 
 @group(0) @binding(0) var tex_array: texture_2d_array<f32>;
@@ -11,7 +10,7 @@ struct ChunkMetadata {
 
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
-@group(2) @binding(0) var<uniform> chunk_metadata: ChunkMetadata;
+var<push_constant> chunk_metadata: ChunkMetadata;
 
 struct VertexInput {
     @location(0) kind: u32
@@ -109,17 +108,18 @@ struct VertexOutput {
 
     out.orientation = orientation;
     out.texture_index = instance.kind & 16383;
+    let lod = u32(chunk_metadata.pos_lod.w);
     out.clip_position = camera.view_proj * vec4<f32>(
         (vec3<f32>(
-            f32(chunk_metadata.pos.x),
-            f32(chunk_metadata.pos.y),
-            f32(chunk_metadata.pos.z)
+            f32(chunk_metadata.pos_lod.x),
+            f32(chunk_metadata.pos_lod.y),
+            f32(chunk_metadata.pos_lod.z)
         ) * 32
         + vec3<f32>(
             f32((instance.kind >> 24) & 31u),
             f32((instance.kind >> 19) & 31u),
             f32((instance.kind >> 14) & 31u)
-        ) + vertex_position) * f32(1u << (chunk_metadata.lod)),
+        ) + vertex_position) * f32(1u << lod),
         1.0
     );
     return out;
