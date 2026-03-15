@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
 use crate::{
-    FOV, MAX_CHUNKS, NEAR_PLANE,
+    config::Config,
     gpu::{
         gpu_allocator::GPUSlotAllocator,
         projection::{Projection, View},
@@ -65,6 +65,7 @@ impl<'a> Gpu<'a> {
     pub async fn connect_to(
         window: &'a winit::window::Window,
         present_mode: wgpu::PresentMode,
+        config: &Config,
     ) -> Gpu<'a> {
         let PhysicalSize { width, height } = window.inner_size();
 
@@ -106,7 +107,7 @@ impl<'a> Gpu<'a> {
         // sRGB surfaces, you'll need to account for that when drawing to the frame.
         let size = window.inner_size();
 
-        let config = wgpu::SurfaceConfiguration {
+        let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_caps
                 .formats
@@ -122,8 +123,8 @@ impl<'a> Gpu<'a> {
             desired_maximum_frame_latency: 2,
         };
         let (device, queue) = future.await.unwrap();
-        if config.width > 0 && config.height > 0 {
-            surface.configure(&device, &config);
+        if surface_config.width > 0 && surface_config.height > 0 {
+            surface.configure(&device, &surface_config);
         }
 
         let texture_bind_group_layout =
@@ -218,7 +219,7 @@ impl<'a> Gpu<'a> {
                     },
                 ],
             });
-        let depth_texture = Texture::create_depth_texture(&device, &config);
+        let depth_texture = Texture::create_depth_texture(&device, &surface_config);
         let depth_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Depth Bind Group"),
             layout: &depth_texture_bind_group_layout,
@@ -246,14 +247,14 @@ impl<'a> Gpu<'a> {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let render_target = Texture::create_rendering_target(&device, &config);
+        let render_target = Texture::create_rendering_target(&device, &surface_config);
 
         Self {
-            proj: Projection::new(width, height, FOV, NEAR_PLANE),
+            proj: Projection::new(width, height, config.fov, config.near_plane),
 
             mesh_map: HashMap::with_capacity(10_000),
             vram_cache: GPUSlotAllocator::new(&device, 393_216, 10_000),
-            frustum_allocs: voxine::FrustumAllocations::default(MAX_CHUNKS),
+            frustum_allocs: voxine::FrustumAllocations::default(config.max_chunks),
 
             diffuse_bind_group: {
                 let texture = Texture::from_images(
@@ -335,7 +336,7 @@ impl<'a> Gpu<'a> {
                     module: &shader,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: config.format,
+                        format: surface_config.format,
                         blend: Some(wgpu::BlendState {
                             color: wgpu::BlendComponent {
                                 src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -402,7 +403,7 @@ impl<'a> Gpu<'a> {
                         module: &shader,
                         entry_point: Some("post_processing"),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: config.format, // Das Renderziel (z. B. Swapchain-Format)
+                            format: surface_config.format, // Das Renderziel (z. B. Swapchain-Format)
                             blend: Some(wgpu::BlendState::REPLACE), // Einfaches Overwriting
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
@@ -430,7 +431,7 @@ impl<'a> Gpu<'a> {
             depth_texture_bind_group_layout,
             render_target_bind_group_layout,
             device,
-            config,
+            config: surface_config,
             view_proj_buffer: camera_buffer,
             vertex_buffer,
             index_buffer,

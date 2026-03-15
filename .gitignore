@@ -1,3 +1,5 @@
 /target
 /commit.sh
 /bugfixes.txt
+/config.toml
+/keymap.json

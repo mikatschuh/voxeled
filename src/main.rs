@@ -2,36 +2,35 @@ use glam::Vec3;
 use winit::{dpi::PhysicalSize, event::Event, event_loop::EventLoopWindowTarget};
 
 use crate::{
+    config::{Config, LiveConfig},
+    config_loader::{ConfigFile, ConfigPath},
     event_loop::make_window,
     gpu::{projection::View, window::Window},
     input::InputEventFilter,
 };
 use voxine::{
     ComposableGenerator, DeltaTimeMeter, Frustum, Gen2D, Gen3D, MaterialGenerator, Noise,
-    SphereConfig, cam_controller::CamController,
+    cam_controller::CamController,
 };
 
 // mod collision;
 // mod console;
 
+mod config;
+#[allow(unused)]
+mod config_loader;
+#[allow(unused)]
+mod error;
 mod event_loop;
 mod gpu;
+#[allow(unused)]
 mod input;
 #[allow(unused)]
 mod playground;
 
-const NUM_CPUS: usize = 3;
-
-const STARTING_POS: Vec3 = Vec3::new(0., 0., 0.);
-
-const FULL_DETAL_DISTANCE: f32 = 12.;
-const RENDER_DISTANCE: f32 = 1000. / 32.;
-const MAX_CHUNKS: usize = 5000;
+const RENDER_DISTANCE: f32 = 100_000. / 32.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
-
-pub const FOV: f32 = std::f32::consts::FRAC_PI_3;
-pub const NEAR_PLANE: f32 = 0.1;
 
 fn main() {
     env_logger::init(); // this logs error messages
@@ -45,6 +44,8 @@ struct EventHandler<'a> {
     gpu: gpu::Gpu<'a>,
 
     engine_channel: voxine::RenderThreadChannels,
+    config: Config,
+    config_updates: rtrb::Consumer<LiveConfig>,
 
     input_event_filter: InputEventFilter,
     frames_drawn: usize,
@@ -55,27 +56,36 @@ struct EventHandler<'a> {
 
 impl event_loop::EventHandler<'static> for EventHandler<'static> {
     fn new(window: &'static winit::window::Window) -> Self {
+        let (config, config_updates) =
+            config_loader::config_thread::<config::Config, config::LiveConfig>(ConfigPath {
+                keymap: "keymap.json".into(),
+                config: "config.toml".into(),
+            })
+            .expect("config");
+
         let delta_time = DeltaTimeMeter::new();
 
         let seed: u64 = 0x6b_fb_99_99_77_f4_cd_52; //random::get_random(0, u64::MAX);
         println!("world seed: {:16x}", seed);
 
         Self {
-            engine_channel: voxine::create_engine_thread(
-                NUM_CPUS,
-                SphereConfig {
-                    full_detail_range: FULL_DETAL_DISTANCE,
-                    radius: RENDER_DISTANCE,
-                    max_chunks: MAX_CHUNKS,
-                },
-                CamController::new(STARTING_POS, 0., 0., true, delta_time.reader()),
+            engine_channel: voxine::engine_thread(
+                config.engine_config(),
+                CamController::new(
+                    Vec3::from_array(config.starting_pos),
+                    0.,
+                    0.,
+                    true,
+                    delta_time.reader(),
+                    config.camera.clone(),
+                ),
                 ComposableGenerator::gen_2d(
                     Gen2D {
                         noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
                         octaves: 3,
                         base_height: -1.,
                         x_scale: 5000.,
-                        y_scale: 13.,
+                        y_scale: 15.,
                         z_scale: 5000.,
                     },
                     Some(MaterialGenerator::new(seed)),
@@ -95,7 +105,8 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
             .unwrap(),
             gpu: pollster::block_on(gpu::Gpu::connect_to(
                 &window,
-                wgpu::PresentMode::AutoNoVsync,
+                wgpu::PresentMode::AutoVsync,
+                &config,
             )),
 
             input_event_filter: input::InputEventFilter::new().expect("input event filter"),
@@ -104,6 +115,8 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
             toggle_impl: true,
             paused: false,
             delta_time,
+            config,
+            config_updates,
         }
     }
 
@@ -123,6 +136,21 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
         control_flow: &EventLoopWindowTarget<()>,
     ) {
         self.delta_time.update();
+
+        let camera_config = if let Ok(config_update) = self.config_updates.pop() {
+            dbg!();
+            self.config.update(config_update.clone());
+            self.engine_channel
+                .updates
+                .push(voxine::Update::ConfigUpdate {
+                    update: config_update.engine_config_update(),
+                })
+                .expect("update");
+            Some(config_update.camera)
+        } else {
+            None
+        };
+
         let inputs = self.input_event_filter.get();
 
         if inputs.pause {
@@ -138,6 +166,10 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
 
         let frustum = {
             let mut camera = self.engine_channel.player.write();
+            if let Some(camera_config) = camera_config {
+                camera.update_config(camera_config)
+            }
+
             if !self.paused && window.focused() {
                 let prev_cam_pos = camera.pos();
 
@@ -201,11 +233,11 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
             Frustum {
                 cam_pos: camera.pos(),
                 direction: camera.dir(),
-                fov: FOV,
+                fov: self.config.fov,
                 aspect_ratio: window.aspect_ratio,
-                max_chunks: MAX_CHUNKS,
-                max_distance: RENDER_DISTANCE,
-                full_detail_range: FULL_DETAL_DISTANCE,
+                max_chunks: self.config.max_chunks,
+                max_distance: self.config.render_distance / 32.,
+                full_detail_range: self.config.full_detail_distance / 32.,
             }
         };
 
@@ -236,8 +268,8 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
 impl Drop for EventHandler<'_> {
     fn drop(&mut self) {
         self.engine_channel
-            .config_updates
-            .push(voxine::ConfigUpdates::ShutDown)
+            .updates
+            .push(voxine::Update::ShutDown)
             .unwrap()
     }
 }

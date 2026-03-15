@@ -48,12 +48,15 @@ pub fn make_window<E: EventHandler<'static>>() {
                 match event {
                     Event::WindowEvent { event, window_id } if window_id == window.id() => {
                         match event {
-                            WindowEvent::Occluded(occluded) => match occluded {
-                                true => control_flow.set_control_flow(ControlFlow::Wait),
-                                false => {
-                                    control_flow.set_control_flow(ControlFlow::Poll);
+                            WindowEvent::Occluded(occluded) => {
+                                match occluded {
+                                    true => control_flow.set_control_flow(ControlFlow::Wait),
+                                    false => {
+                                        control_flow.set_control_flow(ControlFlow::Poll);
+                                    }
                                 }
-                            },
+                                event_handler.reconfigure();
+                            }
                             WindowEvent::Focused(focused) => {
                                 window.set_focus(focused);
                                 event_handler.set_window_focus(focused)
