@@ -37,6 +37,8 @@ pub struct Config {
 
     pub task_queue_cap: usize,
 
+    pub discarded_tasks_queue_cap: usize,
+
     pub mesh_queue_cap: usize,
     pub chunk_queue_cap: usize,
     pub collider_queue_cap: usize,
@@ -84,6 +86,8 @@ impl Config {
             worker_count: self.worker_count,
 
             task_queue_cap: self.task_queue_cap,
+
+            discarded_tasks_queue_cap: self.discarded_tasks_queue_cap,
 
             mesh_queue_cap: self.mesh_queue_cap,
             chunk_queue_cap: self.chunk_queue_cap,

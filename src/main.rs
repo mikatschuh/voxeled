@@ -13,9 +13,6 @@ use voxine::{
     cam_controller::CamController,
 };
 
-// mod collision;
-// mod console;
-
 mod config;
 #[allow(unused)]
 mod config_loader;
@@ -82,7 +79,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                 ComposableGenerator::gen_2d(
                     Gen2D {
                         noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
-                        octaves: 3,
+                        octaves: 4,
                         base_height: -1.,
                         x_scale: 5000.,
                         y_scale: 15.,
