@@ -12,11 +12,13 @@ pub struct LiveConfig {
     pub print_tps: bool,
 
     pub camera: CameraConfig,
+    pub gpu_mesh_upload_time: f64,
 }
 
 impl config_loader::Live for LiveConfig {}
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct Config {
     pub full_detail_distance: f32,
     pub render_distance: f32,
@@ -25,12 +27,15 @@ pub struct Config {
     pub print_tps: bool,
 
     pub camera: CameraConfig,
+    pub gpu_mesh_upload_time: f64,
 
     pub starting_pos: [f32; 3],
     pub fov: f32,
     pub near_plane: f32,
 
     pub worker_count: usize,
+
+    pub task_queue_cap: usize,
 
     pub mesh_queue_cap: usize,
     pub chunk_queue_cap: usize,
@@ -50,6 +55,7 @@ impl ConfigFile<LiveConfig> for Config {
             print_tps: self.print_tps,
 
             camera: self.camera,
+            gpu_mesh_upload_time: self.gpu_mesh_upload_time,
         }
     }
 
@@ -61,7 +67,8 @@ impl ConfigFile<LiveConfig> for Config {
         self.full_detail_distance = update.full_detail_distance;
         self.render_distance = update.render_distance;
         self.max_chunks = update.max_chunks;
-        self.print_tps = update.print_tps
+        self.print_tps = update.print_tps;
+        self.gpu_mesh_upload_time = update.gpu_mesh_upload_time;
     }
 }
 
@@ -75,6 +82,8 @@ impl Config {
             print_tps: self.print_tps,
 
             worker_count: self.worker_count,
+
+            task_queue_cap: self.task_queue_cap,
 
             mesh_queue_cap: self.mesh_queue_cap,
             chunk_queue_cap: self.chunk_queue_cap,

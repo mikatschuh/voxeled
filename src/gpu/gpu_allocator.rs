@@ -7,6 +7,14 @@ pub const MAX_BUFFER_SIZE: usize = 268_435_456;
 /// (size_class_id, buffer_id, slot_id)
 pub type SlotID = (usize, usize, usize);
 
+pub struct GPUSlotAllocatorStats {
+    pub reserved_bytes: usize,
+    pub payload_bytes: usize,
+    pub allocated_slots: usize,
+    pub free_slots: usize,
+    pub size_classes: usize,
+}
+
 struct SizeClass {
     slot_size: usize,
     slots_per_buffer: usize,
@@ -19,23 +27,57 @@ pub struct GPUSlotAllocator {
     default_cap: usize,
     size_class_lookup: HashMap<usize, usize>,
     size_classes: Vec<SizeClass>,
+    slot_usage: HashMap<SlotID, usize>,
 }
 
 impl GPUSlotAllocator {
-    pub fn new(device: &Device, slot_size: usize, cap: usize) -> Self {
+    pub fn new(slot_size: usize, cap: usize) -> Self {
         let min_slot_size = slot_size.max(1).next_power_of_two();
         let mut allocator = Self {
             min_slot_size,
             default_cap: cap,
             size_class_lookup: HashMap::new(),
             size_classes: Vec::new(),
+            slot_usage: HashMap::with_capacity(cap),
         };
 
-        allocator.ensure_size_class(device, min_slot_size);
+        allocator.ensure_size_class(min_slot_size);
         allocator
     }
 
+    pub fn reserved_size(&self) -> usize {
+        self.size_classes
+            .iter()
+            .map(|class| {
+                class
+                    .buffer_pool
+                    .iter()
+                    .map(|buf| buf.size() as usize)
+                    .sum::<usize>()
+            })
+            .sum()
+    }
+
+    pub fn stats(&self) -> GPUSlotAllocatorStats {
+        let reserved_bytes = self.reserved_size();
+        let payload_bytes = self.slot_usage.values().sum();
+        let free_slots = self
+            .size_classes
+            .iter()
+            .map(|class| class.free_slots.len())
+            .sum();
+
+        GPUSlotAllocatorStats {
+            reserved_bytes,
+            payload_bytes,
+            allocated_slots: self.slot_usage.len(),
+            free_slots,
+            size_classes: self.size_classes.len(),
+        }
+    }
+
     pub fn deallocate_slot(&mut self, slot_id: SlotID) {
+        self.slot_usage.remove(&slot_id);
         self.size_classes[slot_id.0]
             .free_slots
             .push((slot_id.1, slot_id.2));
@@ -55,11 +97,13 @@ impl GPUSlotAllocator {
         if data.len() > current_slot_size {
             let new_slot = self.allocate_slot(device, data.len());
             self.write_to_slot(queue, new_slot, data);
+            self.slot_usage.insert(new_slot, data.len());
             self.deallocate_slot(slot_id);
             return new_slot;
         }
 
         self.write_to_slot(queue, slot_id, data);
+        self.slot_usage.insert(slot_id, data.len());
         slot_id
     }
 
@@ -67,11 +111,13 @@ impl GPUSlotAllocator {
     /// Slot sizes are grouped into power-of-two classes.
     pub fn allocate_slot(&mut self, device: &Device, required_size: usize) -> SlotID {
         let slot_size = self.slot_size_for(required_size);
-        let class_id = self.ensure_size_class(device, slot_size);
+        let class_id = self.ensure_size_class(slot_size);
         let class = &mut self.size_classes[class_id];
 
         if let Some((buffer_id, slot_id)) = class.free_slots.pop() {
-            return (class_id, buffer_id, slot_id);
+            let slot = (class_id, buffer_id, slot_id);
+            self.slot_usage.insert(slot, 0);
+            return slot;
         }
 
         class.buffer_pool.push(Self::create_buffer(
@@ -85,7 +131,9 @@ impl GPUSlotAllocator {
             class.free_slots.push((new_buffer_id, s));
         }
 
-        (class_id, new_buffer_id, 0)
+        let slot = (class_id, new_buffer_id, 0);
+        self.slot_usage.insert(slot, 0);
+        slot
     }
 
     pub fn slot_size(&self, slot_id: SlotID) -> usize {
@@ -105,7 +153,7 @@ impl GPUSlotAllocator {
         requested.max(self.min_slot_size)
     }
 
-    fn ensure_size_class(&mut self, device: &Device, slot_size: usize) -> usize {
+    fn ensure_size_class(&mut self, slot_size: usize) -> usize {
         if let Some(&class_id) = self.size_class_lookup.get(&slot_size) {
             return class_id;
         }
@@ -118,23 +166,13 @@ impl GPUSlotAllocator {
         );
 
         let slots_per_buffer = (MAX_BUFFER_SIZE / slot_size).max(1);
-        let num_of_bufs = self.default_cap.div_ceil(slots_per_buffer).max(1);
 
-        let mut size_class = SizeClass {
+        let size_class = SizeClass {
             slot_size,
             slots_per_buffer,
-            buffer_pool: Vec::with_capacity(num_of_bufs),
-            free_slots: Vec::with_capacity(num_of_bufs * slots_per_buffer),
+            buffer_pool: Vec::with_capacity(self.default_cap.div_ceil(slots_per_buffer).max(1)),
+            free_slots: Vec::with_capacity(slots_per_buffer.min(self.default_cap.max(1))),
         };
-
-        for b in 0..num_of_bufs {
-            size_class
-                .buffer_pool
-                .push(Self::create_buffer(device, slot_size, b));
-            for s in 0..slots_per_buffer {
-                size_class.free_slots.push((b, s));
-            }
-        }
 
         let class_id = self.size_classes.len();
         self.size_classes.push(size_class);

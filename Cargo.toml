@@ -25,7 +25,9 @@ blake3 = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-voxine = { git = "https://github.com/mikatschuh/voxeled-engine" }
+[dependencies.voxine]
+path = "../voxeled_engine"
+# git = "https://github.com/mikatschuh/voxeled-engine"
 
 [dependencies.image]
 version = "0.24"

@@ -138,7 +138,6 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
         self.delta_time.update();
 
         let camera_config = if let Ok(config_update) = self.config_updates.pop() {
-            dbg!();
             self.config.update(config_update.clone());
             self.engine_channel
                 .updates
@@ -242,8 +241,10 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
         };
 
         if self.change_mesh {
-            self.gpu
-                .update_mesh(&mut self.engine_channel.mesh_updates, 0.01);
+            self.gpu.update_mesh(
+                &mut self.engine_channel.mesh_updates,
+                self.config.gpu_mesh_upload_time,
+            );
         }
 
         self.gpu.draw(frustum, control_flow);

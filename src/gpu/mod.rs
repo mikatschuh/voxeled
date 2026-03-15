@@ -14,6 +14,7 @@ use crate::{
 };
 
 // pub mod exotic_cameras;
+#[allow(dead_code)]
 mod gpu_allocator;
 pub mod projection;
 mod shader;
@@ -253,7 +254,7 @@ impl<'a> Gpu<'a> {
             proj: Projection::new(width, height, config.fov, config.near_plane),
 
             mesh_map: HashMap::with_capacity(10_000),
-            vram_cache: GPUSlotAllocator::new(&device, 393_216, 10_000),
+            vram_cache: GPUSlotAllocator::new(32 * 32 * 4, 100_000),
             frustum_allocs: voxine::FrustumAllocations::default(config.max_chunks),
 
             diffuse_bind_group: {
