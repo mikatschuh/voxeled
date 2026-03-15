@@ -2,7 +2,8 @@
 pub enum Texture {
     CrackedStone,
     Stone,
-    Dirt,
+    Dirt0,
+    Dirt1,
     Debug,
 }
 use Texture::*;
@@ -10,10 +11,11 @@ use Texture::*;
 impl Texture {
     pub fn bytes(self) -> &'static [u8] {
         match self {
-            CrackedStone => include_bytes!("cracked_stone.png"),
-            Stone => include_bytes!("normal_stone.png"),
-            Dirt => include_bytes!("deprecated_dirt.png"),
-            Debug => include_bytes!("debug_occlusion.png"),
+            CrackedStone => include_bytes!("normal_stone-8x8.png"),
+            Stone => include_bytes!("normal_stone-8x8.png"),
+            Dirt0 => include_bytes!("dirt-0.png"),
+            Dirt1 => include_bytes!("dirt-1.png"),
+            Debug => include_bytes!("normal_stone-8x8.png"),
         }
     }
 }

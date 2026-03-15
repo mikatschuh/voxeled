@@ -265,7 +265,8 @@ impl<'a> Gpu<'a> {
                         image::load_from_memory(texture_set::Texture::CrackedStone.bytes())
                             .unwrap(),
                         image::load_from_memory(texture_set::Texture::Stone.bytes()).unwrap(),
-                        image::load_from_memory(texture_set::Texture::Dirt.bytes()).unwrap(),
+                        image::load_from_memory(texture_set::Texture::Dirt0.bytes()).unwrap(),
+                        image::load_from_memory(texture_set::Texture::Dirt1.bytes()).unwrap(),
                         image::load_from_memory(texture_set::Texture::Debug.bytes()).unwrap(),
                     ],
                     Some("Stone Texture"),

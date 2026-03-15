@@ -9,7 +9,7 @@ use crate::{
     input::InputEventFilter,
 };
 use voxine::{
-    ComposableGenerator, DeltaTimeMeter, Frustum, Gen2D, Gen3D, MaterialGenerator, Noise,
+    ComposableGenerator, DeltaTimeMeter, Frustum, Gen2D, Gen3D, Noise,
     cam_controller::CamController,
 };
 
@@ -25,7 +25,7 @@ mod input;
 #[allow(unused)]
 mod playground;
 
-const RENDER_DISTANCE: f32 = 100_000. / 32.;
+const RENDER_DISTANCE: f32 = 10_000. / 32.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
@@ -76,28 +76,31 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                     delta_time.reader(),
                     config.camera.clone(),
                 ),
-                ComposableGenerator::gen_2d(
-                    Gen2D {
-                        noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
-                        octaves: 4,
-                        base_height: -1.,
-                        x_scale: 5000.,
-                        y_scale: 15.,
-                        z_scale: 5000.,
-                    },
-                    Some(MaterialGenerator::new(seed)),
-                ) + ComposableGenerator::gen_3d(
-                    Gen3D {
-                        noise: Noise::new(seed as u32),
-                        octaves: 8,
-                        x_scale: 100.,
-                        y_scale: 100.,
-                        z_scale: 100.,
-                        exponent: 3.,
-                        threshold: 0.2,
-                    },
-                    None,
-                ),
+                ComposableGenerator::dirt(seed >> 31)
+                    * ComposableGenerator::gen_2d(
+                        Gen2D {
+                            invert: true,
+                            noise: Noise::new((seed ^ 0x19_af_2b_7c_e8_9a_7d_d3) as u32),
+                            octaves: 13,
+                            base_height: -1.,
+                            x_scale: 5000.,
+                            y_scale: 15.,
+                            z_scale: 5000.,
+                        },
+                        voxine::VoxelTypes::Air,
+                    )
+                    * ComposableGenerator::gen_3d(
+                        Gen3D {
+                            noise: Noise::new(seed as u32),
+                            octaves: 8,
+                            x_scale: 100.,
+                            y_scale: 100.,
+                            z_scale: 100.,
+                            exponent: 3.,
+                            threshold: 0.2,
+                        },
+                        voxine::VoxelTypes::Air,
+                    ),
             )
             .unwrap(),
             gpu: pollster::block_on(gpu::Gpu::connect_to(
