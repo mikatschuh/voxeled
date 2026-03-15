@@ -1,0 +1,32 @@
+full-detail-distance = 500.0
+full-detail-generation-distance = 200.0
+render-distance = 10_000.0
+max-chunks = 1_000_000
+
+print-tps = true
+
+starting-pos = [-17252.209,  +4873.935,  +8548.131]
+fov = 1.04719755
+near-plane = 0.1
+
+gpu-mesh-upload-time = 99.0
+
+worker-count = 5
+
+task-queue-cap = 100_000
+
+discarded-tasks-queue-cap = 100_000
+
+mesh-queue-cap = 100_000
+chunk-queue-cap = 100_000
+collider-queue-cap = 100_000
+solid-map-queue-cap = 100_000
+
+config-sender-cap = 64
+
+[camera]
+friction = 1.0
+standart-speed = 50.0
+max-speed = 1000.0
+acc-change-sensitivity = 1.5
+sensitivity = 0.0025

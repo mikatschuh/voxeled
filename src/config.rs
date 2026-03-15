@@ -6,6 +6,7 @@ use crate::config_loader::{self, ConfigFile};
 #[derive(Clone)]
 pub struct LiveConfig {
     pub full_detail_distance: f32,
+    pub full_detail_generation_distance: f32,
     pub render_distance: f32,
     pub max_chunks: usize,
 
@@ -21,6 +22,7 @@ impl config_loader::Live for LiveConfig {}
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
     pub full_detail_distance: f32,
+    pub full_detail_generation_distance: f32,
     pub render_distance: f32,
     pub max_chunks: usize,
 
@@ -51,6 +53,7 @@ impl ConfigFile<LiveConfig> for Config {
     fn live(self) -> LiveConfig {
         LiveConfig {
             full_detail_distance: self.full_detail_distance,
+            full_detail_generation_distance: self.full_detail_generation_distance,
             render_distance: self.render_distance,
             max_chunks: self.max_chunks,
 
@@ -77,7 +80,7 @@ impl ConfigFile<LiveConfig> for Config {
 impl Config {
     pub fn engine_config(&self) -> voxine::Config {
         voxine::Config {
-            full_detail_distance: self.full_detail_distance / 32.,
+            full_detail_distance: self.full_detail_generation_distance / 32.,
             total_generation_distance: self.render_distance / 32.,
             max_chunks: self.max_chunks,
 
@@ -100,7 +103,7 @@ impl Config {
 impl LiveConfig {
     pub fn engine_config_update(&self) -> voxine::ConfigUpdate {
         voxine::ConfigUpdate {
-            full_detail_distance: self.full_detail_distance / 32.,
+            full_detail_distance: self.full_detail_generation_distance / 32.,
             total_generation_distance: self.render_distance / 32.,
             max_chunks: self.max_chunks,
 
