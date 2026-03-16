@@ -12,9 +12,6 @@ struct ChunkMetadata {
 
 var<push_constant> chunk_metadata: ChunkMetadata;
 
-struct VertexInput {
-    @location(0) kind: u32
-}
 struct InstanceInput {
     @location(1) kind: u32
 };
@@ -27,80 +24,95 @@ struct VertexOutput {
 }
 
 @vertex fn vs_main(
-    model: VertexInput,
+    @builtin(vertex_index) vertex_index: u32,
     instance: InstanceInput,
 ) -> VertexOutput {
     var vertex_position: vec3<f32>;
+    let triangle_vertex = vertex_index % 6u;
+    var corner: u32;
+    if triangle_vertex == 0u {
+        corner = 0u;
+    } else if triangle_vertex == 1u {
+        corner = 1u;
+    } else if triangle_vertex == 2u {
+        corner = 2u;
+    } else if triangle_vertex == 3u {
+        corner = 0u;
+    } else if triangle_vertex == 4u {
+        corner = 2u;
+    } else {
+        corner = 3u;
+    }
 
     let orientation = instance.kind >> 29u;
     if orientation == 0u {                            // 0
-        if model.kind == 0u {
+        if corner == 0u {
             vertex_position = vec3(0.0, 0.0, 1.0);
-        } else if model.kind == 1u {
+        } else if corner == 1u {
             vertex_position = vec3(0.0, 0.0, 0.0);
-        } else if model.kind == 2u {
+        } else if corner == 2u {
             vertex_position = vec3(0.0, 1.0, 0.0);
-        } else { // model.kind == 3u
+        } else { // corner == 3u
             vertex_position = vec3(0.0, 1.0, 1.0);
         }
     } else if orientation == 1u {                     // 1
-        if model.kind == 0u {
+        if corner == 0u {
             vertex_position = vec3(1.0, 0.0, 0.0);
-        } else if model.kind == 1u {
+        } else if corner == 1u {
             vertex_position = vec3(1.0, 0.0, 1.0);
-        } else if model.kind == 2u {
+        } else if corner == 2u {
             vertex_position = vec3(1.0, 1.0, 1.0);
-        } else { // model.kind == 3u
+        } else { // corner == 3u
             vertex_position = vec3(1.0, 1.0, 0.0);
         }
     } else if orientation == 2u {                     // 2
-        if model.kind == 0u {
+        if corner == 0u {
             vertex_position = vec3(0.0, 0.0, 1.0);
-        } else if model.kind == 1u {
+        } else if corner == 1u {
             vertex_position = vec3(1.0, 0.0, 1.0);
-        } else if model.kind == 2u {
+        } else if corner == 2u {
             vertex_position = vec3(1.0, 0.0, 0.0);
-        } else { // model.kind == 3u
+        } else { // corner == 3u
             vertex_position = vec3(0.0, 0.0, 0.0);
         }
     } else if orientation == 3u {                     // 3
-        if model.kind == 0u {
+        if corner == 0u {
             vertex_position = vec3(0.0, 1.0, 0.0);
-        } else if model.kind == 1u {
+        } else if corner == 1u {
             vertex_position = vec3(1.0, 1.0, 0.0);
-        } else if model.kind == 2u {
+        } else if corner == 2u {
             vertex_position = vec3(1.0, 1.0, 1.0);
-        } else { // model.kind == 3u
+        } else { // corner == 3u
             vertex_position = vec3(0.0, 1.0, 1.0);
         }
     } else if orientation == 4u {                     // 4
-        if model.kind == 0u {
+        if corner == 0u {
             vertex_position = vec3(0.0, 0.0, 0.0);
-        } else if model.kind == 1u {
+        } else if corner == 1u {
             vertex_position = vec3(1.0, 0.0, 0.0);
-        } else if model.kind == 2u {
+        } else if corner == 2u {
             vertex_position = vec3(1.0, 1.0, 0.0);
-        } else { // model.kind == 3u
+        } else { // corner == 3u
             vertex_position = vec3(0.0, 1.0, 0.0);
         }
     } else {                                            // 5
-        if model.kind == 0u {
+        if corner == 0u {
             vertex_position = vec3(1.0, 0.0, 1.0);
-        } else if model.kind == 1u {
+        } else if corner == 1u {
             vertex_position = vec3(0.0, 0.0, 1.0);
-        } else if model.kind == 2u {
+        } else if corner == 2u {
             vertex_position = vec3(0.0, 1.0, 1.0);
-        } else { // model.kind == 3u
+        } else { // corner == 3u
             vertex_position = vec3(1.0, 1.0, 1.0);
         }
     }
     var out: VertexOutput;
 
-    if model.kind == 0u {
+    if corner == 0u {
         out.tex_coords = vec2(1.0, 0.0);
-    } else if model.kind == 1u {
+    } else if corner == 1u {
         out.tex_coords = vec2(0.0, 0.0);
-    } else if model.kind == 2u {
+    } else if corner == 2u {
         out.tex_coords = vec2(0.0, 1.0);
     } else {
         out.tex_coords = vec2(1.0, 1.0);

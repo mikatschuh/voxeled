@@ -1,8 +1,6 @@
 use std::{collections::HashMap, time::Instant};
 
 use texture::Texture;
-use vertex::*;
-use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
 use crate::{
@@ -20,7 +18,6 @@ pub mod projection;
 mod shader;
 mod texture;
 pub mod texture_set;
-pub mod vertex;
 pub mod window;
 
 /// Ein Drawer. Der Drawer ist der Zugang zur Graphikkarte. Er ist an ein Fenster genüpft.
@@ -51,9 +48,7 @@ pub struct Gpu<'a> {
     view_proj_buffer: wgpu::Buffer,
 
     // Asset things:
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    vertices_per_face: u32,
 
     vram_cache: gpu_allocator::GPUSlotAllocator,
     mesh_map: HashMap<voxine::ChunkID, (u64, gpu_allocator::SlotID)>,
@@ -237,17 +232,6 @@ impl<'a> Gpu<'a> {
         });
         let shader = device.create_shader_module(crate::gpu::shader::make_shader());
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&Vertex::vertices()),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&Vertex::indices()),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
         let render_target = Texture::create_rendering_target(&device, &surface_config);
 
         Self {
@@ -331,7 +315,7 @@ impl<'a> Gpu<'a> {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[Vertex::desc(), voxine::Instance::desc()],
+                    buffers: &[voxine::Instance::desc()],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
@@ -435,9 +419,7 @@ impl<'a> Gpu<'a> {
             device,
             config: surface_config,
             view_proj_buffer: camera_buffer,
-            vertex_buffer,
-            index_buffer,
-            num_indices: 6,
+            vertices_per_face: 6,
         }
     }
     /// Eine Methode welche die Fenstergröße anpasst.
@@ -604,9 +586,6 @@ impl<'a> Gpu<'a> {
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-
             let chunks = frustum.flood_fill(&mut self.frustum_allocs, &self.mesh_map);
 
             for chunk in chunks {
@@ -621,9 +600,9 @@ impl<'a> Gpu<'a> {
                 render_pass.set_push_constants(wgpu::ShaderStages::VERTEX, 0, &chunk_bytes);
 
                 let (buffer, offset) = self.vram_cache.buffer_and_offset(slot_id);
-                render_pass.set_vertex_buffer(1, buffer.slice(offset..offset + size));
+                render_pass.set_vertex_buffer(0, buffer.slice(offset..offset + size));
 
-                render_pass.draw_indexed(0..self.num_indices, 0, 0..(size as u32 >> 2));
+                render_pass.draw(0..self.vertices_per_face, 0..(size as u32 >> 2));
             }
         }
 
