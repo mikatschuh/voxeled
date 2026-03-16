@@ -9,7 +9,7 @@ starting-pos = [-17252.209,  +4873.935,  +8548.131]
 fov = 1.04719755
 near-plane = 0.1
 
-gpu-mesh-upload-time = 0.1
+gpu-mesh-upload-time = 1.0
 
 worker-count = 5
 

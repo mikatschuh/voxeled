@@ -23,11 +23,44 @@ struct VertexOutput {
     @interpolate(flat) @location(2) orientation: u32,
 }
 
+const QUAD_UVS: array<vec2<f32>, 4> = array(
+    vec2(1.0, 1.0),
+    vec2(0.0, 1.0),
+    vec2(0.0, 0.0),
+    vec2(1.0, 0.0),
+);
+
+const FACE_ORIGINS: array<vec3<f32>, 6> = array(
+    vec3(0.0, 1.0, 0.0),
+    vec3(1.0, 1.0, 1.0),
+    vec3(1.0, 0.0, 0.0),
+    vec3(1.0, 1.0, 1.0),
+    vec3(1.0, 1.0, 0.0),
+    vec3(0.0, 1.0, 1.0),
+);
+
+const FACE_U_AXES: array<vec3<f32>, 6> = array(
+    vec3(0.0, 0.0, 1.0),
+    vec3(0.0, 0.0, -1.0),
+    vec3(-1.0, 0.0, 0.0),
+    vec3(-1.0, 0.0, 0.0),
+    vec3(-1.0, 0.0, 0.0),
+    vec3(1.0, 0.0, 0.0),
+);
+
+const FACE_V_AXES: array<vec3<f32>, 6> = array(
+    vec3(0.0, -1.0, 0.0),
+    vec3(0.0, -1.0, 0.0),
+    vec3(0.0, 0.0, 1.0),
+    vec3(0.0, 0.0, -1.0),
+    vec3(0.0, -1.0, 0.0),
+    vec3(0.0, -1.0, 0.0),
+);
+
 @vertex fn vs_main(
     @builtin(vertex_index) vertex_index: u32,
     instance: InstanceInput,
 ) -> VertexOutput {
-    var vertex_position: vec3<f32>;
     let strip_vertex = vertex_index & 3u;
     var corner: u32;
     if strip_vertex == 0u {
@@ -38,79 +71,16 @@ struct VertexOutput {
         corner = 5u - strip_vertex;
     }
 
-    let orientation = instance.kind >> 29u;
-    if orientation == 0u {                            // 0
-        if corner == 0u {
-            vertex_position = vec3(0.0, 0.0, 1.0);
-        } else if corner == 1u {
-            vertex_position = vec3(0.0, 0.0, 0.0);
-        } else if corner == 2u {
-            vertex_position = vec3(0.0, 1.0, 0.0);
-        } else { // corner == 3u
-            vertex_position = vec3(0.0, 1.0, 1.0);
-        }
-    } else if orientation == 1u {                     // 1
-        if corner == 0u {
-            vertex_position = vec3(1.0, 0.0, 0.0);
-        } else if corner == 1u {
-            vertex_position = vec3(1.0, 0.0, 1.0);
-        } else if corner == 2u {
-            vertex_position = vec3(1.0, 1.0, 1.0);
-        } else { // corner == 3u
-            vertex_position = vec3(1.0, 1.0, 0.0);
-        }
-    } else if orientation == 2u {                     // 2
-        if corner == 0u {
-            vertex_position = vec3(0.0, 0.0, 1.0);
-        } else if corner == 1u {
-            vertex_position = vec3(1.0, 0.0, 1.0);
-        } else if corner == 2u {
-            vertex_position = vec3(1.0, 0.0, 0.0);
-        } else { // corner == 3u
-            vertex_position = vec3(0.0, 0.0, 0.0);
-        }
-    } else if orientation == 3u {                     // 3
-        if corner == 0u {
-            vertex_position = vec3(0.0, 1.0, 0.0);
-        } else if corner == 1u {
-            vertex_position = vec3(1.0, 1.0, 0.0);
-        } else if corner == 2u {
-            vertex_position = vec3(1.0, 1.0, 1.0);
-        } else { // corner == 3u
-            vertex_position = vec3(0.0, 1.0, 1.0);
-        }
-    } else if orientation == 4u {                     // 4
-        if corner == 0u {
-            vertex_position = vec3(0.0, 0.0, 0.0);
-        } else if corner == 1u {
-            vertex_position = vec3(1.0, 0.0, 0.0);
-        } else if corner == 2u {
-            vertex_position = vec3(1.0, 1.0, 0.0);
-        } else { // corner == 3u
-            vertex_position = vec3(0.0, 1.0, 0.0);
-        }
-    } else {                                            // 5
-        if corner == 0u {
-            vertex_position = vec3(1.0, 0.0, 1.0);
-        } else if corner == 1u {
-            vertex_position = vec3(0.0, 0.0, 1.0);
-        } else if corner == 2u {
-            vertex_position = vec3(0.0, 1.0, 1.0);
-        } else { // corner == 3u
-            vertex_position = vec3(1.0, 1.0, 1.0);
-        }
-    }
-    var out: VertexOutput;
 
-    if corner == 0u {
-        out.tex_coords = vec2(1.0, 1.0);
-    } else if corner == 1u {
-        out.tex_coords = vec2(0.0, 1.0);
-    } else if corner == 2u {
-        out.tex_coords = vec2(0.0, 0.0);
-    } else {
-        out.tex_coords = vec2(1.0, 0.0);
-    }
+    let orientation = instance.kind >> 29u;
+    let tex_coords = QUAD_UVS[corner];
+    let vertex_position =
+        FACE_ORIGINS[orientation]
+        + FACE_U_AXES[orientation] * tex_coords.x
+        + FACE_V_AXES[orientation] * tex_coords.y;
+
+    var out: VertexOutput;
+    out.tex_coords = tex_coords;
 
     out.orientation = orientation;
     out.texture_index = instance.kind & 16383;
