@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Instant};
 
 use texture::Texture;
+use voxine::print_info;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
 use crate::{
@@ -340,10 +341,10 @@ impl<'a> Gpu<'a> {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    topology: wgpu::PrimitiveTopology::TriangleStrip,
                     strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Front), // DEBUG: Culling komplett deaktiviert
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: Some(wgpu::Face::Back), // DEBUG: Culling komplett deaktiviert
                     // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                     polygon_mode: wgpu::PolygonMode::Fill,
                     // Requires Features::DEPTH_CLIP_CONTROL
@@ -419,7 +420,7 @@ impl<'a> Gpu<'a> {
             device,
             config: surface_config,
             view_proj_buffer: camera_buffer,
-            vertices_per_face: 6,
+            vertices_per_face: 4,
         }
     }
     /// Eine Methode welche die Fenstergröße anpasst.
@@ -588,6 +589,7 @@ impl<'a> Gpu<'a> {
 
             let chunks = frustum.flood_fill(&mut self.frustum_allocs, &self.mesh_map);
 
+            let mut num_of_chunks = 0_usize;
             for chunk in chunks {
                 let Some((size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
                     continue;
@@ -603,7 +605,9 @@ impl<'a> Gpu<'a> {
                 render_pass.set_vertex_buffer(0, buffer.slice(offset..offset + size));
 
                 render_pass.draw(0..self.vertices_per_face, 0..(size as u32 >> 2));
+                num_of_chunks += 1;
             }
+            // print_info!("num_of_chunks: {}", num_of_chunks);
         }
 
         // Zweiter Render-Pass: Post-Processing mit der ersten Textur als Input

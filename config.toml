@@ -1,7 +1,7 @@
 full-detail-distance = 500.0
 full-detail-generation-distance = 200.0
-render-distance = 10_000.0
-max-chunks = 1_000_000
+render-distance = 100_000.0
+max-chunks = 100_000
 
 print-tps = true
 
@@ -9,7 +9,7 @@ starting-pos = [-17252.209,  +4873.935,  +8548.131]
 fov = 1.04719755
 near-plane = 0.1
 
-gpu-mesh-upload-time = 99.0
+gpu-mesh-upload-time = 0.1
 
 worker-count = 5
 

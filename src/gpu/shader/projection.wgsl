@@ -28,20 +28,14 @@ struct VertexOutput {
     instance: InstanceInput,
 ) -> VertexOutput {
     var vertex_position: vec3<f32>;
-    let triangle_vertex = vertex_index % 6u;
+    let strip_vertex = vertex_index & 3u;
     var corner: u32;
-    if triangle_vertex == 0u {
+    if strip_vertex == 0u {
         corner = 0u;
-    } else if triangle_vertex == 1u {
+    } else if strip_vertex == 1u {
         corner = 1u;
-    } else if triangle_vertex == 2u {
-        corner = 2u;
-    } else if triangle_vertex == 3u {
-        corner = 0u;
-    } else if triangle_vertex == 4u {
-        corner = 2u;
     } else {
-        corner = 3u;
+        corner = 5u - strip_vertex;
     }
 
     let orientation = instance.kind >> 29u;
@@ -109,13 +103,13 @@ struct VertexOutput {
     var out: VertexOutput;
 
     if corner == 0u {
-        out.tex_coords = vec2(1.0, 0.0);
-    } else if corner == 1u {
-        out.tex_coords = vec2(0.0, 0.0);
-    } else if corner == 2u {
-        out.tex_coords = vec2(0.0, 1.0);
-    } else {
         out.tex_coords = vec2(1.0, 1.0);
+    } else if corner == 1u {
+        out.tex_coords = vec2(0.0, 1.0);
+    } else if corner == 2u {
+        out.tex_coords = vec2(0.0, 0.0);
+    } else {
+        out.tex_coords = vec2(1.0, 0.0);
     }
 
     out.orientation = orientation;
