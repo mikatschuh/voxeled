@@ -1,13 +1,13 @@
 use std::{collections::HashMap, time::Instant};
 
 use texture::Texture;
-use voxine::print_info;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
 use crate::{
     config::Config,
     gpu::{
         gpu_allocator::GPUSlotAllocator,
+        profiling::PerformanceStats,
         projection::{Projection, View},
     },
 };
@@ -15,6 +15,7 @@ use crate::{
 // pub mod exotic_cameras;
 #[allow(dead_code)]
 mod gpu_allocator;
+mod profiling;
 pub mod projection;
 mod shader;
 mod texture;
@@ -54,6 +55,7 @@ pub struct Gpu<'a> {
     vram_cache: gpu_allocator::GPUSlotAllocator,
     mesh_map: HashMap<voxine::ChunkID, (u64, gpu_allocator::SlotID)>,
     frustum_allocs: voxine::FrustumAllocations,
+    perf_stats: PerformanceStats,
 }
 
 impl<'a> Gpu<'a> {
@@ -421,6 +423,7 @@ impl<'a> Gpu<'a> {
             config: surface_config,
             view_proj_buffer: camera_buffer,
             vertices_per_face: 4,
+            perf_stats: PerformanceStats::new(),
         }
     }
     /// Eine Methode welche die Fenstergröße anpasst.
@@ -494,12 +497,14 @@ impl<'a> Gpu<'a> {
     ) {
         let now = Instant::now();
         while let Ok((chunk_id, mesh)) = mesh_recv.pop() {
+            let upload_start = Instant::now();
+            let mesh_len = mesh.len_in_bytes() as u64;
             if let Some((slot_size, slot_id)) = self.mesh_map.get_mut(&chunk_id) {
                 let updated_slot =
                     self.vram_cache
                         .write_slot(&self.device, &self.queue, *slot_id, mesh.bytes());
                 *slot_id = updated_slot;
-                *slot_size = mesh.len_in_bytes() as u64;
+                *slot_size = mesh_len;
             } else {
                 let allocated_slot = self
                     .vram_cache
@@ -511,9 +516,12 @@ impl<'a> Gpu<'a> {
                     mesh.bytes(),
                 );
 
-                self.mesh_map
-                    .insert(chunk_id, (mesh.len_in_bytes() as u64, updated_slot));
+                self.mesh_map.insert(chunk_id, (mesh_len, updated_slot));
             }
+            self.perf_stats.mesh_updates += 1;
+            self.perf_stats.uploaded_bytes += mesh_len;
+            self.perf_stats.mesh_update_time.add(upload_start.elapsed());
+            self.perf_stats.maybe_report();
             if now.elapsed().as_secs_f64() >= allowed_time {
                 return;
             }
@@ -543,7 +551,10 @@ impl<'a> Gpu<'a> {
     }
 
     fn try_draw(&mut self, frustum: voxine::Frustum) -> Result<(), wgpu::SurfaceError> {
+        let draw_start = Instant::now();
+        let acquire_start = Instant::now();
         let output = self.surface.get_current_texture()?;
+        self.perf_stats.acquire_time.add(acquire_start.elapsed());
         let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -555,6 +566,9 @@ impl<'a> Gpu<'a> {
             });
 
         // Erster Render-Pass: Szene auf Render-Target zeichnen
+        let main_pass_start = Instant::now();
+        let mut visible_chunks = 0_u64;
+        let mut visible_faces = 0_u64;
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass - Main Scene"),
@@ -589,7 +603,6 @@ impl<'a> Gpu<'a> {
 
             let chunks = frustum.flood_fill(&mut self.frustum_allocs, &self.mesh_map);
 
-            let mut num_of_chunks = 0_usize;
             for chunk in chunks {
                 let Some((size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
                     continue;
@@ -604,13 +617,20 @@ impl<'a> Gpu<'a> {
                 let (buffer, offset) = self.vram_cache.buffer_and_offset(slot_id);
                 render_pass.set_vertex_buffer(0, buffer.slice(offset..offset + size));
 
-                render_pass.draw(0..self.vertices_per_face, 0..(size as u32 >> 2));
-                num_of_chunks += 1;
+                let face_count = size >> 2;
+                render_pass.draw(0..self.vertices_per_face, 0..face_count as u32);
+                visible_chunks += 1;
+                visible_faces += face_count;
             }
-            // print_info!("num_of_chunks: {}", num_of_chunks);
         }
+        self.perf_stats
+            .main_pass_time
+            .add(main_pass_start.elapsed());
+        self.perf_stats.visible_chunks += visible_chunks;
+        self.perf_stats.visible_faces += visible_faces;
 
         // Zweiter Render-Pass: Post-Processing mit der ersten Textur als Input
+        let post_process_start = Instant::now();
         {
             let mut post_process_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass - Post Processing"),
@@ -637,10 +657,20 @@ impl<'a> Gpu<'a> {
             post_process_pass.set_bind_group(1, &self.depth_texture_bind_group, &[]);
             post_process_pass.draw(0..6, 0..1); // Fullscreen-Quad mit 6 Vertices
         }
+        self.perf_stats
+            .post_process_time
+            .add(post_process_start.elapsed());
 
         // Sende die Commands an die GPU
+        let submit_start = Instant::now();
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present(); // Ausgabe auf den Bildschirm
+        self.perf_stats
+            .submit_present_time
+            .add(submit_start.elapsed());
+        self.perf_stats.frames += 1;
+        self.perf_stats.total_draw_time.add(draw_start.elapsed());
+        self.perf_stats.maybe_report();
 
         Ok(())
     }
