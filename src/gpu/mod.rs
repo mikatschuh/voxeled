@@ -1,5 +1,6 @@
 use std::{collections::HashMap, time::Instant};
 
+use glam::Vec3;
 use texture::Texture;
 use winit::{dpi::PhysicalSize, event_loop::EventLoopWindowTarget};
 
@@ -53,9 +54,16 @@ pub struct Gpu<'a> {
     vertices_per_face: u32,
 
     vram_cache: gpu_allocator::GPUSlotAllocator,
-    mesh_map: HashMap<voxine::ChunkID, (u64, gpu_allocator::SlotID)>,
+    mesh_map: HashMap<voxine::ChunkID, ([u64; 6], u64, gpu_allocator::SlotID)>,
     frustum_allocs: voxine::FrustumAllocations,
     perf_stats: PerformanceStats,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+struct ChunkPushConstant {
+    coord: [u32; 4],
+    orientation: u32,
 }
 
 impl<'a> Gpu<'a> {
@@ -93,7 +101,7 @@ impl<'a> Gpu<'a> {
         let device_descriptor = wgpu::DeviceDescriptor {
             required_features,
             required_limits: wgpu::Limits {
-                max_push_constant_size: 16, // chunk metadata = 4 * u32
+                max_push_constant_size: 20, // chunk metadata = 4 * u32
                 ..Default::default()
             },
             ..Default::default()
@@ -311,7 +319,7 @@ impl<'a> Gpu<'a> {
                         ],
                         push_constant_ranges: &[wgpu::PushConstantRange {
                             stages: wgpu::ShaderStages::VERTEX,
-                            range: 0..16,
+                            range: 0..20,
                         }],
                     }),
                 ),
@@ -346,7 +354,7 @@ impl<'a> Gpu<'a> {
                     topology: wgpu::PrimitiveTopology::TriangleStrip,
                     strip_index_format: None,
                     front_face: wgpu::FrontFace::Cw,
-                    cull_mode: Some(wgpu::Face::Back), // DEBUG: Culling komplett deaktiviert
+                    cull_mode: None, // Some(wgpu::Face::Back), // DEBUG: Culling komplett deaktiviert
                     // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                     polygon_mode: wgpu::PolygonMode::Fill,
                     // Requires Features::DEPTH_CLIP_CONTROL
@@ -492,31 +500,33 @@ impl<'a> Gpu<'a> {
 
     pub fn update_mesh(
         &mut self,
-        mesh_recv: &mut voxine::MpscReceiver<(voxine::ChunkID, voxine::Mesh)>,
+        mesh_recv: &mut voxine::MpscReceiver<(voxine::ChunkID, voxine::MeshUpload)>,
         allowed_time: f64,
     ) {
         let now = Instant::now();
         while let Ok((chunk_id, mesh)) = mesh_recv.pop() {
             let upload_start = Instant::now();
-            let mesh_len = mesh.len_in_bytes() as u64;
-            if let Some((slot_size, slot_id)) = self.mesh_map.get_mut(&chunk_id) {
+            let mesh_len = mesh.len();
+            if let Some((offsets, slot_size, slot_id)) = self.mesh_map.get_mut(&chunk_id) {
                 let updated_slot =
                     self.vram_cache
-                        .write_slot(&self.device, &self.queue, *slot_id, mesh.bytes());
+                        .write_slot(&self.device, &self.queue, *slot_id, &mesh.view());
                 *slot_id = updated_slot;
                 *slot_size = mesh_len;
+                *offsets = mesh.offsets
             } else {
                 let allocated_slot = self
                     .vram_cache
-                    .allocate_slot(&self.device, mesh.len_in_bytes());
+                    .allocate_slot(&self.device, (mesh_len as usize) << 2);
                 let updated_slot = self.vram_cache.write_slot(
                     &self.device,
                     &self.queue,
                     allocated_slot,
-                    mesh.bytes(),
+                    &mesh.view(),
                 );
 
-                self.mesh_map.insert(chunk_id, (mesh_len, updated_slot));
+                self.mesh_map
+                    .insert(chunk_id, (mesh.offsets, mesh_len, updated_slot));
             }
             self.perf_stats.mesh_updates += 1;
             self.perf_stats.uploaded_bytes += mesh_len;
@@ -601,26 +611,49 @@ impl<'a> Gpu<'a> {
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
+            let cam_pos = frustum.cam_pos;
             let chunks = frustum.flood_fill(&mut self.frustum_allocs, &self.mesh_map);
 
             for chunk in chunks {
-                let Some((size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
+                let Some((offsets, size, slot_id)) = self.mesh_map.get(&chunk).cloned() else {
                     continue;
                 };
                 if size == 0 {
                     continue;
                 }
+                for_every_axis(
+                    cam_pos,
+                    chunk.total_pos().as_vec3(),
+                    (1 << chunk.lod) as f32,
+                    |axis| {
+                        let current_offset = offsets[axis];
+                        let next_offset = offsets.get(axis + 1).cloned().unwrap_or(size);
+                        if current_offset == next_offset {
+                            return; // size is zero
+                        }
 
-                let chunk_bytes = chunk.bytes();
-                render_pass.set_push_constants(wgpu::ShaderStages::VERTEX, 0, &chunk_bytes);
+                        let chunk_bytes = ChunkPushConstant {
+                            coord: chunk.bytes(),
+                            orientation: axis as u32,
+                        }; // push constant
+                        render_pass.set_push_constants(
+                            wgpu::ShaderStages::VERTEX,
+                            0,
+                            bytemuck::cast_slice(&[chunk_bytes]),
+                        );
 
-                let (buffer, offset) = self.vram_cache.buffer_and_offset(slot_id);
-                render_pass.set_vertex_buffer(0, buffer.slice(offset..offset + size));
+                        let (buffer, offset) = self.vram_cache.buffer_and_offset(slot_id);
+                        render_pass.set_vertex_buffer(
+                            0,
+                            buffer.slice(offset + current_offset..offset + next_offset),
+                        );
 
-                let face_count = size >> 2;
-                render_pass.draw(0..self.vertices_per_face, 0..face_count as u32);
-                visible_chunks += 1;
-                visible_faces += face_count;
+                        let face_count = (next_offset - current_offset) >> 2;
+                        render_pass.draw(0..self.vertices_per_face, 0..face_count as u32);
+                        visible_chunks += 1;
+                        visible_faces += face_count;
+                    },
+                );
             }
         }
         self.perf_stats
@@ -673,5 +706,26 @@ impl<'a> Gpu<'a> {
         self.perf_stats.maybe_report();
 
         Ok(())
+    }
+}
+
+fn for_every_axis(cam_pos: Vec3, chunk_pos: Vec3, chunk_size: f32, mut closure: impl FnMut(usize)) {
+    if cam_pos.x <= chunk_pos.x + chunk_size {
+        closure(0);
+    }
+    if chunk_pos.x <= cam_pos.x {
+        closure(1);
+    }
+    if cam_pos.y <= chunk_pos.y + chunk_size {
+        closure(2);
+    }
+    if chunk_pos.y <= cam_pos.y {
+        closure(3);
+    }
+    if cam_pos.z <= chunk_pos.z + chunk_size {
+        closure(4);
+    }
+    if chunk_pos.z <= cam_pos.z {
+        closure(5);
     }
 }

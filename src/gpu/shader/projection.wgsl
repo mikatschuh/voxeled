@@ -3,6 +3,7 @@ struct CameraUniform {
 };
 struct ChunkMetadata {
     pos_lod: vec4<i32>,
+    orientation: u32
 }
 
 @group(0) @binding(0) var tex_array: texture_2d_array<f32>;
@@ -72,7 +73,7 @@ const FACE_V_AXES: array<vec3<f32>, 6> = array(
     }
 
 
-    let orientation = instance.kind >> 29u;
+    let orientation = chunk_metadata.orientation;
     let tex_coords = QUAD_UVS[corner];
     let vertex_position =
         FACE_ORIGINS[orientation]
@@ -92,9 +93,9 @@ const FACE_V_AXES: array<vec3<f32>, 6> = array(
             f32(chunk_metadata.pos_lod.z)
         ) * 32
         + vec3<f32>(
-            f32((instance.kind >> 24) & 31u),
-            f32((instance.kind >> 19) & 31u),
-            f32((instance.kind >> 14) & 31u)
+            f32((instance.kind >> 27) & 31u),
+            f32((instance.kind >> 22) & 31u),
+            f32((instance.kind >> 17) & 31u)
         ) + vertex_position) * f32(1u << lod),
         1.0
     );

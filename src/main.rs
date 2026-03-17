@@ -230,7 +230,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                 self.gpu.update_view(View::new(camera.pos(), camera.dir()));
             }
             Frustum {
-                cam_pos: camera.pos(),
+                cam_pos: camera.pos() / 32.,
                 direction: camera.dir(),
                 fov: self.config.fov,
                 aspect_ratio: window.aspect_ratio,
