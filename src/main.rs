@@ -3,7 +3,6 @@ use winit::{dpi::PhysicalSize, event::Event, event_loop::EventLoopWindowTarget};
 
 use crate::{
     config::{Config, LiveConfig},
-    config_loader::{ConfigFile, ConfigPath},
     event_loop::make_window,
     gpu::{projection::View, window::Window},
     input::InputEventFilter,
@@ -14,8 +13,6 @@ use voxine::{
 };
 
 mod config;
-#[allow(unused)]
-mod config_loader;
 #[allow(unused)]
 mod error;
 mod event_loop;
@@ -54,11 +51,8 @@ struct EventHandler<'a> {
 impl event_loop::EventHandler<'static> for EventHandler<'static> {
     fn new(window: &'static winit::window::Window) -> Self {
         let (config, config_updates) =
-            config_loader::config_thread::<config::Config, config::LiveConfig>(ConfigPath {
-                keymap: "keymap.json".into(),
-                config: "config.toml".into(),
-            })
-            .expect("config");
+            voxine::config_thread::<config::Config, LiveConfig>("config.toml".into())
+                .expect("config");
 
         let delta_time = DeltaTimeMeter::new();
 

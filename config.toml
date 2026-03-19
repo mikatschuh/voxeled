@@ -1,6 +1,6 @@
-full-detail-distance = 500.0
+full-detail-distance = 300.0
 full-detail-generation-distance = 200.0
-render-distance = 100_000.0
+render-distance = 10_000.0
 max-chunks = 100_000
 
 print-tps = true

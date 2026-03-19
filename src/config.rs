@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use voxine::cam_controller::CameraConfig;
 
-use crate::config_loader::{self, ConfigFile};
-
 #[derive(Clone)]
 pub struct LiveConfig {
     pub full_detail_distance: f32,
@@ -15,8 +13,7 @@ pub struct LiveConfig {
     pub camera: CameraConfig,
     pub gpu_mesh_upload_time: f64,
 }
-
-impl config_loader::Live for LiveConfig {}
+impl voxine::Live for LiveConfig {}
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -49,7 +46,7 @@ pub struct Config {
     pub config_sender_cap: usize,
 }
 
-impl ConfigFile<LiveConfig> for Config {
+impl voxine::ConfigFile<LiveConfig> for Config {
     fn live(self) -> LiveConfig {
         LiveConfig {
             full_detail_distance: self.full_detail_distance,
@@ -67,17 +64,17 @@ impl ConfigFile<LiveConfig> for Config {
     fn sender_cap(&self) -> usize {
         self.config_sender_cap
     }
+}
 
-    fn update(&mut self, update: LiveConfig) {
+impl Config {
+    pub fn update(&mut self, update: LiveConfig) {
         self.full_detail_distance = update.full_detail_distance;
         self.render_distance = update.render_distance;
         self.max_chunks = update.max_chunks;
         self.print_tps = update.print_tps;
         self.gpu_mesh_upload_time = update.gpu_mesh_upload_time;
     }
-}
 
-impl Config {
     pub fn engine_config(&self) -> voxine::Config {
         voxine::Config {
             full_detail_distance: self.full_detail_generation_distance / 32.,
