@@ -1,9 +1,12 @@
 full-detail-distance = 300.0
 full-detail-generation-distance = 200.0
-render-distance = 10_000.0
+task-cancelation-lod-threshold = 2
+render-distance = 100_000.0
 max-chunks = 100_000
 
 print-tps = true
+print-tps-per = 5.0
+target-tps = 1.0
 
 starting-pos = [-17252.209,  +4873.935,  +8548.131]
 fov = 1.04719755
@@ -14,14 +17,12 @@ gpu-mesh-upload-time = 1.0
 worker-count = 5
 
 task-queue-cap = 100_000
-
+engine-worker-config-queue-cap = 64
 discarded-tasks-queue-cap = 100_000
-
 mesh-queue-cap = 100_000
 chunk-queue-cap = 100_000
 collider-queue-cap = 100_000
 solid-map-queue-cap = 100_000
-
 config-sender-cap = 64
 
 [camera]

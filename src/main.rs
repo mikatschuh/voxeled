@@ -22,7 +22,7 @@ mod input;
 #[allow(unused)]
 mod playground;
 
-const RENDER_DISTANCE: f32 = 10_000. / 32.;
+const RENDER_DISTANCE: f32 = 200. / 32.;
 const GRAVITY: f32 = 9.81;
 const WALK_JUMP_SPEED: f32 = 5000.;
 
@@ -50,9 +50,13 @@ struct EventHandler<'a> {
 
 impl event_loop::EventHandler<'static> for EventHandler<'static> {
     fn new(window: &'static winit::window::Window) -> Self {
-        let (config, config_updates) =
-            voxine::config_thread::<config::Config, LiveConfig>("config.toml".into())
-                .expect("config");
+        let (config, config_updates) = voxine::config_loader::config_thread::<
+            config::ConfigFile,
+            config::Config,
+            LiveConfig,
+            config::Error,
+        >("config.toml".into())
+        .expect("config");
 
         let delta_time = DeltaTimeMeter::new();
 
@@ -61,7 +65,7 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
 
         Self {
             engine_channel: voxine::engine_thread(
-                config.engine_config(),
+                config.clone().engine_config(),
                 CamController::new(
                     Vec3::from_array(config.starting_pos),
                     0.,
@@ -133,13 +137,14 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
 
         let camera_config = if let Ok(config_update) = self.config_updates.pop() {
             self.config.update(config_update.clone());
+            let camera = config_update.camera.clone();
             self.engine_channel
                 .updates
                 .push(voxine::Update::ConfigUpdate {
                     update: config_update.engine_config_update(),
                 })
                 .expect("update");
-            Some(config_update.camera)
+            Some(camera)
         } else {
             None
         };
