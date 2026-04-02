@@ -48,14 +48,15 @@ fn perspective_reverse_z(fovy: f32, aspect: f32, near: f32) -> Mat4 {
 pub struct View {
     pos: Vec3,
     dir: Vec3,
+    up: Vec3,
 }
 
 impl View {
-    pub fn new(pos: Vec3, dir: Vec3) -> Self {
-        Self { pos, dir }
+    pub fn new(pos: Vec3, dir: Vec3, up: Vec3) -> Self {
+        Self { pos, dir, up }
     }
 
     pub fn calc_matrix(&self) -> Mat4 {
-        Mat4::look_to_rh(self.pos, self.dir, Vec3::Y)
+        Mat4::look_to_rh(self.pos, self.dir, self.up)
     }
 }

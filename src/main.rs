@@ -226,7 +226,15 @@ impl event_loop::EventHandler<'static> for EventHandler<'static> {
                     );
                 }
 
-                self.gpu.update_view(View::new(camera.pos(), camera.dir()));
+                self.gpu.update_view(View::new(
+                    camera.pos(),
+                    camera.dir(),
+                    if camera.up().signum().y >= 0. {
+                        Vec3::Y
+                    } else {
+                        Vec3::NEG_Y
+                    },
+                ));
             }
             Frustum {
                 cam_pos: camera.pos() / 32.,
