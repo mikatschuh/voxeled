@@ -13,11 +13,11 @@ use voxine::{
 };
 
 mod config;
-#[allow(unused)]
+#[allow(dead_code)]
 mod error;
 mod event_loop;
 mod gpu;
-#[allow(unused)]
+#[allow(dead_code)]
 mod input;
 #[allow(unused)]
 mod playground;

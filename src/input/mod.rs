@@ -246,7 +246,7 @@ impl InputEventFilter {
                 } => {
                     self.inputs.mouse_wheel = Some(PhysicalPosition::new(
                         self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).x + *x,
-                        self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y + *y,
+                        self.inputs.mouse_wheel.unwrap_or(VEC32_ZERO).y - *y,
                     ))
                 }
                 WindowEvent::MouseWheel {
